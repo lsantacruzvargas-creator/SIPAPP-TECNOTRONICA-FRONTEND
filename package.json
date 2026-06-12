@@ -19,12 +19,13 @@
     "publish": {
       "provider": "github",
       "owner": "lsantacruzvargas-creator",
-      "repo": "SIPAPP-TECNOTRONICA-FRONTEND"
+      "repo": "SIPAPP-TECNOTRONICA-FRONTEND",
+      "releaseType": "release"
     }
   },
   "name": "sipapp-tecnotronica",
   "private": true,
-  "version": "3.4.0",
+  "version": "3.4.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -32,10 +33,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "npm run build && electron-builder",
-    "release:patch": "npm version patch --no-git-tag-version && npm run build && electron-builder --publish always",
-    "release:minor": "npm version minor --no-git-tag-version && npm run build && electron-builder --publish always",
-    "release:major": "npm version major --no-git-tag-version && npm run build && electron-builder --publish always"
+    "electron:build": "npm run build && npx electron-builder",
+    "release:patch": "npm version patch --no-git-tag-version && npm run build && npx electron-builder --publish always",
+    "release:minor": "npm version minor --no-git-tag-version && npm run build && npx electron-builder --publish always",
+    "release:major": "npm version major --no-git-tag-version && npm run build && npx electron-builder --publish always"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",
