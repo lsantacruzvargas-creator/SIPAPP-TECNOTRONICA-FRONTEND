@@ -1,5 +1,20 @@
 import { imgUrl } from "../utils/fetchAuth";
 
+const descargarImagen = async (url) => {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = url.split("/").pop() || "imagen.jpg";
+    a.click();
+    URL.revokeObjectURL(objectUrl);
+  } catch (err) {
+    console.error("Error al descargar imagen:", err);
+  }
+};
+
 const badgeAvance = (e) => {
   if (e === "entregado")   return "bg-teal-100 text-teal-700 border border-teal-200";
   if (e === "completado")  return "bg-green-100 text-green-700 border border-green-200";
@@ -108,12 +123,24 @@ function AvanceCompleto({ avance, numero }) {
                           const desc = typeof img === "string" ? null : img.descripcion;
                           return (
                             <div key={k} className="flex flex-col items-center gap-1 w-36">
-                              <img
-                                src={imgUrl(url)}
-                                alt=""
-                                onClick={() => window.open(imgUrl(url), "_blank")}
-                                className="w-36 h-36 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-80 transition shadow-sm"
-                              />
+                              <div className="relative group w-36 h-36">
+                                <img
+                                  src={imgUrl(url)}
+                                  alt=""
+                                  onClick={() => window.open(imgUrl(url), "_blank")}
+                                  className="w-36 h-36 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-80 transition shadow-sm"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); descargarImagen(imgUrl(url)); }}
+                                  className="absolute bottom-1 right-1 bg-black/60 hover:bg-black/80 text-white rounded-lg p-1 opacity-0 group-hover:opacity-100 transition"
+                                  title="Descargar imagen"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                                  </svg>
+                                </button>
+                              </div>
                               {desc && (
                                 <p className="text-xs text-gray-500 text-center w-full leading-tight">{desc}</p>
                               )}

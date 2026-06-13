@@ -298,7 +298,7 @@ function VistaDetalle({ cot, ie }) {
       </div>
 
       {(() => {
-        const bruto       = parseFloat(cot.items.reduce((s, i) => s + i.cantidad * i.precio, 0).toFixed(2));
+        const bruto       = parseFloat(cot.items.reduce((s, i) => s + (Number(i.descuento) > 0 ? Number(i.cantidad) * Number(i.precio) : Number(i.subtotal)), 0).toFixed(2));
         const desc        = parseFloat((bruto - Number(cot.subtotal)).toFixed(2));
         const igvVista    = parseFloat((Number(cot.subtotal) * 0.18).toFixed(2));
         const totalVista  = parseFloat((Number(cot.subtotal) * 1.18).toFixed(2));
