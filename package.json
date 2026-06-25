@@ -25,7 +25,7 @@
   },
   "name": "sipapp-tecnotronica",
   "private": true,
-  "version": "3.6.0",
+  "version": "3.6.2",
   "type": "module",
   "scripts": {
     "dev": "vite",

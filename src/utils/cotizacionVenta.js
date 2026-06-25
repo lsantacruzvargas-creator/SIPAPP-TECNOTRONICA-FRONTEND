@@ -165,7 +165,7 @@ export const exportarCotizacionVenta = (cotizacion, ingresoEquipo = null) => {
   y += 8;
   const moneda = cotizacion.items[0]?.moneda ?? "PEN";
   const simbolo = moneda === "PEN" ? "S/" : "$";
-  const _bruto = cotizacion.items.reduce((s, i) => s + Number(i.cantidad) * Number(i.precio), 0);
+  const _bruto = cotizacion.items.reduce((s, i) => s + (Number(i.descuento) > 0 ? Number(i.cantidad) * Number(i.precio) : Number(i.subtotal)), 0);
   const _descMonto = parseFloat((_bruto - Number(cotizacion.subtotal)).toFixed(2));
   const _sinIgv = Number(cotizacion.subtotal);
   const _igv = parseFloat((_sinIgv * 0.18).toFixed(2));

@@ -669,17 +669,16 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
                               : calcSubtotal(item).toFixed(2);
                             return (
                               <tr key={item._key}>
-                                <td className="px-3 py-2">
-                                  <input
-                                    type="text"
+                                <td className="px-3 py-2 align-top">
+                                  <textarea
                                     value={item.descripcion}
                                     onChange={(e) => actualizarItem(item._key, "descripcion", e.target.value)}
-                                    required
-                                    className={`w-full ${INP}`}
+                                    required rows={3}
+                                    className={`w-full resize-y ${INP}`}
                                     placeholder="Descripción"
                                   />
                                 </td>
-                                <td className="px-3 py-2">
+                                <td className="px-3 py-2 align-top">
                                   <input
                                     type="number" min="0" step="0.01"
                                     value={item.cantidad}
@@ -688,7 +687,7 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
                                     className={`w-16 text-center ${INP}`}
                                   />
                                 </td>
-                                <td className="px-3 py-2 text-center text-sm text-gray-600">
+                                <td className="px-3 py-2 align-top text-center text-sm text-gray-600">
                                   {esIV ? "%" : (
                                     <input
                                       type="text"
@@ -699,7 +698,7 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
                                     />
                                   )}
                                 </td>
-                                <td className="px-3 py-2">
+                                <td className="px-3 py-2 align-top">
                                   {!esIV && (
                                     <input
                                       type="number" min="0" step="0.01"
@@ -710,10 +709,10 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
                                     />
                                   )}
                                 </td>
-                                <td className="px-3 py-2 text-right font-medium text-gray-700">
+                                <td className="px-3 py-2 align-top text-right font-medium text-gray-700">
                                   {importe}
                                 </td>
-                                <td className="px-3 py-2">
+                                <td className="px-3 py-2 align-top">
                                   <button
                                     type="button"
                                     onClick={() => eliminarItem(item._key)}

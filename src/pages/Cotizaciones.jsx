@@ -483,20 +483,20 @@ export default function Cotizaciones() {
                             : calcSubtotal(item).toFixed(2);
                           return (
                             <tr key={item._key} className="hover:bg-gray-50/50">
-                              <td className="px-3 py-2">
-                                <input value={item.descripcion}
+                              <td className="px-3 py-2 align-top">
+                                <textarea value={item.descripcion}
                                   onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
-                                  required disabled={ro}
-                                  className={`w-full ${ro ? INP_RO : INP}`} />
+                                  required disabled={ro} rows={3}
+                                  className={`w-full resize-y ${ro ? INP_RO : INP}`} />
                               </td>
-                              <td className="px-3 py-2">
+                              <td className="px-3 py-2 align-top">
                                 <input type="number" min="0" step="0.01"
                                   value={item.cantidad}
                                   onChange={(e) => handleItem(item._key, "cantidad", parseFloat(e.target.value) || 0)}
                                   required disabled={ro}
                                   className={`w-16 text-center ${ro ? INP_RO : INP}`} />
                               </td>
-                              <td className="px-3 py-2 text-center text-sm text-gray-600">
+                              <td className="px-3 py-2 align-top text-center text-sm text-gray-600">
                                 {esIV ? "%" : (
                                   <input type="text"
                                     value={item.unidadMedida}
@@ -506,7 +506,7 @@ export default function Cotizaciones() {
                                     placeholder="UN" />
                                 )}
                               </td>
-                              <td className="px-3 py-2">
+                              <td className="px-3 py-2 align-top">
                                 {!esIV && (
                                   <input type="number" min="0" step="0.01"
                                     value={item.precio}
@@ -515,11 +515,11 @@ export default function Cotizaciones() {
                                     className={`w-24 text-right ${ro ? INP_RO : INP}`} />
                                 )}
                               </td>
-                              <td className="px-3 py-2 text-right font-medium text-gray-700">
+                              <td className="px-3 py-2 align-top text-right font-medium text-gray-700">
                                 {importe}
                               </td>
                               {!ro && (
-                                <td className="px-3 py-2 text-center">
+                                <td className="px-3 py-2 align-top text-center">
                                   <button type="button" onClick={() => eliminarItem(item._key)} className="text-red-400 hover:text-red-600">✕</button>
                                 </td>
                               )}
