@@ -30,7 +30,7 @@ function TooltipCustom({ active, payload }) {
 }
 
 // ── Tarjeta KPI ──────────────────────────────────────────────────────────────
-function KpiCard({ label, value, sub, color }) {
+function KpiCard({ label, value, sub, color, onClick }) {
   const colores = {
     gray:   "bg-gray-50  border-gray-100  text-gray-800",
     blue:   "bg-blue-50  border-blue-100  text-blue-800",
@@ -39,7 +39,10 @@ function KpiCard({ label, value, sub, color }) {
     red:    "bg-red-50   border-red-100   text-red-800",
   };
   return (
-    <div className={`rounded-2xl border p-5 flex flex-col gap-1 min-w-0 ${colores[color] ?? colores.gray}`}>
+    <div
+      onClick={onClick}
+      className={`rounded-2xl border p-5 flex flex-col gap-1 min-w-0 ${colores[color] ?? colores.gray} ${onClick ? "cursor-pointer hover:opacity-80 transition-opacity" : ""}`}
+    >
       <p className="text-xs font-semibold uppercase tracking-wide opacity-60">{label}</p>
       <p className="text-xl sm:text-3xl font-bold leading-tight break-all">{value}</p>
       {sub && <p className="text-xs opacity-60 mt-0.5">{sub}</p>}
@@ -102,7 +105,7 @@ function LabelDona({ cx, cy, midAngle, innerRadius, outerRadius, value }) {
 }
 
 // ── Gráfico de dona ──────────────────────────────────────────────────────────
-function GraficoDona({ titulo, datos, colores }) {
+function GraficoDona({ titulo, datos, colores, onClickSlice }) {
   const total = datos.reduce((s, d) => s + d.value, 0);
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
@@ -123,6 +126,8 @@ function GraficoDona({ titulo, datos, colores }) {
               dataKey="value"
               labelLine={false}
               label={<LabelDona />}
+              onClick={onClickSlice ? (data) => onClickSlice(data.name) : undefined}
+              style={onClickSlice ? { cursor: "pointer" } : undefined}
             >
               {datos.map((entry) => (
                 <Cell key={entry.name} fill={colores[entry.name] ?? "#9ca3af"} />
@@ -158,16 +163,23 @@ function porFecha(arr, campoFecha, ano, mes) {
   });
 }
 
+function porEmpresa(arr, empresaId) {
+  if (!empresaId) return arr;
+  return arr.filter((item) => (item.empresa?._id || item.empresa) === empresaId);
+}
+
 // ── Dashboard principal ──────────────────────────────────────────────────────
 export default function Dashboard() {
-  const usuario = JSON.parse(localStorage.getItem("usuario") || "null");
+  const usuario  = JSON.parse(localStorage.getItem("usuario") || "null");
+  const navigate = useNavigate();
   const [ots, setOts]     = useState([]);
   const [facts, setFacts] = useState([]);
   const [cots, setCots]   = useState([]);
   const [ocs, setOcs]     = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [filtroAno, setFiltroAno] = useState("");
-  const [filtroMes, setFiltroMes] = useState("");
+  const [cargando, setCargando]     = useState(true);
+  const [filtroAno, setFiltroAno]   = useState("");
+  const [filtroMes, setFiltroMes]   = useState("");
+  const [filtroEmpresa, setFiltroEmpresa] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -189,11 +201,19 @@ export default function Dashboard() {
     ...ots.map((o) => o.fecha  ? new Date(o.fecha).getUTCFullYear()  : null),
   ].filter(Boolean))].sort((a, b) => b - a);
 
+  // ── Lista de empresas derivada de los datos ──────────────────────────────
+  const empresasLista = [...new Map([
+    ...cots.filter((c) => c.empresa?._id).map((c) => [c.empresa._id, c.empresa]),
+    ...ots.filter((o)  => o.empresa?._id).map((o)  => [o.empresa._id,  o.empresa]),
+    ...facts.filter((f) => f.empresa?._id).map((f) => [f.empresa._id, f.empresa]),
+    ...ocs.filter((o)  => o.empresa?._id).map((o)  => [o.empresa._id,  o.empresa]),
+  ]).values()].sort((a, b) => a.razonSocial.localeCompare(b.razonSocial));
+
   // ── Arrays filtrados ─────────────────────────────────────────────────────
-  const otsFiltradas   = porFecha(ots,   "fecha",        filtroAno, filtroMes);
-  const factsFiltradas = porFecha(facts, "fechaEmision", filtroAno, filtroMes);
-  const cotsFiltradas  = porFecha(cots,  "fecha",        filtroAno, filtroMes);
-  const ocsFiltradas   = porFecha(ocs,   "fecha",        filtroAno, filtroMes);
+  const otsFiltradas   = porEmpresa(porFecha(ots,   "fecha",        filtroAno, filtroMes), filtroEmpresa);
+  const factsFiltradas = porEmpresa(porFecha(facts, "fechaEmision", filtroAno, filtroMes), filtroEmpresa);
+  const cotsFiltradas  = porEmpresa(porFecha(cots,  "fecha",        filtroAno, filtroMes), filtroEmpresa);
+  const ocsFiltradas   = porEmpresa(porFecha(ocs,   "fecha",        filtroAno, filtroMes), filtroEmpresa);
 
   // ── Datos para gráficos ──────────────────────────────────────────────────
   const contarPor = (arr, campo) => {
@@ -231,11 +251,20 @@ export default function Dashboard() {
 
       {/* Bienvenida + filtros */}
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+        <div className="flex flex-col gap-2">
           <h2 className="text-xl font-bold text-gray-800">
             Bienvenido, {usuario?.nombre}
           </h2>
-          <p className="text-sm text-gray-400 mt-0.5">Panel principal — SIP App Tecnotronica</p>
+          <p className="text-sm text-gray-400">Panel principal — SIP App Tecnotronica</p>
+          <select value={filtroEmpresa} onChange={(e) => setFiltroEmpresa(e.target.value)}
+            className={`${SELECT} w-72`}>
+            <option value="">Toda empresa</option>
+            {empresasLista.map((e) => (
+              <option key={e._id} value={e._id}>
+                {e.alias ? `${e.alias} — ` : ""}{e.razonSocial}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <select value={filtroAno} onChange={(e) => setFiltroAno(e.target.value)} className={SELECT}>
@@ -246,9 +275,9 @@ export default function Dashboard() {
             <option value="">Todos los meses</option>
             {MESES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
           </select>
-          {(filtroAno || filtroMes) && (
+          {(filtroAno || filtroMes || filtroEmpresa) && (
             <button
-              onClick={() => { setFiltroAno(""); setFiltroMes(""); }}
+              onClick={() => { setFiltroAno(""); setFiltroMes(""); setFiltroEmpresa(""); }}
               className="text-sm text-gray-400 hover:text-gray-700 transition"
             >
               Limpiar
@@ -259,16 +288,22 @@ export default function Dashboard() {
 
       {/* KPIs — fila 1 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <KpiCard label="Cotizaciones"      value={cotsFiltradas.length} sub="total registradas"                    color="gray"  />
-        <KpiCard label="OTs activas"       value={otsActivas}           sub={`${otsCompletadas} completadas`}      color="blue"  />
-        <KpiCard label="Facturas abiertas" value={factAbiertas}         sub={`${factsVigentes.length} vigentes`}   color="amber" />
-        <KpiCard label="Total facturado"   value={fmt(totalFacturado)}  sub="suma total con IGV"                   color="gray"  />
+        <KpiCard label="Cotizaciones"      value={cotsFiltradas.length} sub="total registradas"                    color="gray"
+          onClick={() => navigate("/cotizaciones", { state: { filtroEmpresa } })} />
+        <KpiCard label="OTs activas"       value={otsActivas}           sub={`${otsCompletadas} completadas`}      color="blue"
+          onClick={() => navigate("/ordenes-trabajo", { state: { filtroEmpresa } })} />
+        <KpiCard label="Facturas abiertas" value={factAbiertas}         sub={`${factsVigentes.length} vigentes`}   color="amber"
+          onClick={() => navigate("/facturas", { state: { filtroEmpresa } })} />
+        <KpiCard label="Total facturado"   value={fmt(totalFacturado)}  sub="suma total con IGV"                   color="gray"
+          onClick={() => navigate("/facturas", { state: { filtroEmpresa } })} />
       </div>
 
       {/* KPIs — fila 2 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <KpiCard label="Total pagado" value={fmt(totalPagado)} sub="suma de pagos registrados"          color="green" />
-        <KpiCard label="Por cobrar"   value={fmt(porCobrar)}   sub="total a pagar menos pagos recibidos" color="red"   />
+        <KpiCard label="Total pagado" value={fmt(totalPagado)} sub="suma de pagos registrados"          color="green"
+          onClick={() => navigate("/facturas", { state: { filtroEmpresa } })} />
+        <KpiCard label="Por cobrar"   value={fmt(porCobrar)}   sub="total a pagar menos pagos recibidos" color="red"
+          onClick={() => navigate("/facturas", { state: { filtroEmpresa } })} />
       </div>
 
       {/* Contraste OC vs Cotizaciones */}
@@ -280,11 +315,17 @@ export default function Dashboard() {
           titulo="Órdenes de Trabajo por estado"
           datos={datosOT}
           colores={COLOR_OT}
+          onClickSlice={(estado) =>
+            navigate("/ordenes-trabajo", { state: { filtroEstado: estado, filtroEmpresa } })
+          }
         />
         <GraficoDona
           titulo="Facturas por estado de pago"
           datos={datosFact}
           colores={COLOR_FACT}
+          onClickSlice={(estadoPago) =>
+            navigate("/facturas", { state: { filtroEstadoPago: estadoPago, filtroEmpresa } })
+          }
         />
       </div>
 

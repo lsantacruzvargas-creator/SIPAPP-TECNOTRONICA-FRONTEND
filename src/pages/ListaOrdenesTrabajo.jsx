@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { fetchAuth } from "../utils/fetchAuth";
 import ModalVerOT from "../components/ModalVerOT";
 
@@ -26,8 +27,13 @@ const SELECT =
   "border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400";
 
 export default function ListaOrdenesTrabajo() {
+  const location = useLocation();
   const [ordenes, setOrdenes] = useState([]);
-  const [filtros, setFiltros] = useState(FILTROS_VACIO);
+  const [filtros, setFiltros] = useState({
+    ...FILTROS_VACIO,
+    estado:  location.state?.filtroEstado   || "",
+    empresa: location.state?.filtroEmpresa  || "",
+  });
   const [seleccionada, setSeleccionada] = useState(null);
 
   useEffect(() => {
@@ -178,17 +184,20 @@ export default function ListaOrdenesTrabajo() {
                 </td>
               </tr>
             ) : (
-              filtradas.map((o) => (
+              filtradas.map((o) => {
+                const ieAnulada = o.ingresoEquipo?.anulada === true;
+                const tdCls = ieAnulada ? "line-through" : "";
+                return (
                 <tr
                   key={o._id}
-                  className="hover:bg-gray-50 cursor-pointer"
+                  className={`hover:bg-gray-50 cursor-pointer ${ieAnulada ? "opacity-50" : ""}`}
                   onClick={() => setSeleccionada(o)}
                 >
-                  <td className="px-4 py-3 font-mono text-xs text-gray-500">{o.codigo}</td>
-                  <td className="px-4 py-3 font-mono text-ms text-black-400">
+                  <td className={`px-4 py-3 font-mono text-xs text-gray-500 ${tdCls}`}>{o.codigo}</td>
+                  <td className={`px-4 py-3 font-mono text-ms text-black-400 ${tdCls}`}>
                     {o.cotizacion?.codigo || "—"}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={`px-4 py-3 ${tdCls}`}>
                     {o.empresa ? (
                       <span>
                         <span className="font-medium">{o.empresa.alias}</span>
@@ -198,30 +207,35 @@ export default function ListaOrdenesTrabajo() {
                       <span className="text-gray-400">Sin empresa</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 max-w-xs truncate">{o.titulo}</td>
+                  <td className={`px-4 py-3 max-w-xs truncate ${tdCls}`}>{o.titulo}</td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${badgePrioridad(o.prioridad)}`}>
                       {o.prioridad}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${badgeEstado(o.estado)}`}>
-                      {o.estado}
-                    </span>
+                    {ieAnulada ? (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">Anulada</span>
+                    ) : (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${badgeEstado(o.estado)}`}>
+                        {o.estado}
+                      </span>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-gray-500">
+                  <td className={`px-4 py-3 text-gray-500 ${tdCls}`}>
                     {o.personalAsignado?.nombre || <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-center text-gray-500">
+                  <td className={`px-4 py-3 text-center text-gray-500 ${tdCls}`}>
                     {o.fechaEntrega
                       ? new Date(o.fechaEntrega).toLocaleDateString("es-PE", { timeZone: "UTC" })
                       : <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-center text-gray-400 text-xs">
+                  <td className={`px-4 py-3 text-center text-gray-400 text-xs ${tdCls}`}>
                     {new Date(o.createdAt).toLocaleDateString("es-PE")}
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

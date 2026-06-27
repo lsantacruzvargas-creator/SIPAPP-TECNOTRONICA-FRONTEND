@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { fetchAuth } from "../utils/fetchAuth";
 import ModalEditarFactura from "../components/ModalEditarFactura";
 import * as XLSX from "xlsx";
@@ -65,8 +66,13 @@ function BadgeVencimiento({ fecha }) {
 const SELECT = "border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400";
 
 export default function ListaFacturas() {
+  const location = useLocation();
   const [facturas, setFacturas] = useState([]);
-  const [filtros, setFiltros] = useState(FILTROS_VACIO);
+  const [filtros, setFiltros] = useState({
+    ...FILTROS_VACIO,
+    empresa:    location.state?.filtroEmpresa    || "",
+    estadoPago: location.state?.filtroEstadoPago || "",
+  });
   const [seleccionada, setSeleccionada] = useState(null);
 
   const cargar = () =>

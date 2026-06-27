@@ -14,31 +14,30 @@ import CeldasNumericas from "./CeldasNumericas";
 // Módulo-nivel: evita desmontaje/remontaje en cada render (previene pérdida de foco)
 function FilaDescripcionEditable({ item, tipo, onUpdate, onAddSub, onUpdateSub, onDeleteSub }) {
   return (
-    <td className="px-3 py-2 align-top">
-      <input
-        type="text"
+    <td className="px-3 py-2 align-top w-[45%]">
+      <textarea
         value={item.descripcion}
         onChange={(e) => onUpdate(item._key, "descripcion", e.target.value)}
-        required
-        className={`w-full ${INP}`}
+        required rows={tipo === "servicio" ? 4 : 2}
+        className={`w-full resize-y ${INP}`}
         placeholder="Descripción"
       />
       {tipo === "servicio" && (
         <div className="mt-1 space-y-1 pl-2">
           {item.subItems.map((sub) => (
-            <div key={sub._subKey} className="flex gap-1 items-center">
-              <span className="text-gray-400 text-xs">•</span>
-              <input
-                type="text"
+            <div key={sub._subKey} className="flex gap-1 items-start">
+              <span className="text-gray-400 text-xs mt-1.5">•</span>
+              <textarea
                 value={sub.texto}
                 onChange={(e) => onUpdateSub(item._key, sub._subKey, e.target.value)}
-                className={`flex-1 ${INP} text-xs`}
+                rows={3}
+                className={`flex-1 resize-y ${INP} text-xs`}
                 placeholder="Sub-ítem"
               />
               <button
                 type="button"
                 onClick={() => onDeleteSub(item._key, sub._subKey)}
-                className="text-red-400 hover:text-red-600 text-xs px-1 leading-none"
+                className="text-red-400 hover:text-red-600 text-xs px-1 leading-none mt-1"
               >
                 ×
               </button>
@@ -334,6 +333,7 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
   const [otCreada, setOtCreada] = useState(false);
   const [confirmarOC, setConfirmarOC] = useState(false);
   const [crearOC, setCrearOC]         = useState(false);
+  const [confirmarNoEjec, setConfirmarNoEjec] = useState(false);
   const [form, setForm] = useState({});
   const [items, setItems] = useState([]);
   const [empresas, setEmpresas] = useState([]);
@@ -499,16 +499,21 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-3">
-            <span className="font-mono text-sm text-gray-500">{cot.codigo}</span>
+            <span className={`font-mono text-sm text-gray-500 ${cot.noEjecutado ? "line-through" : ""}`}>{cot.codigo}</span>
             <span
               className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
                 cot.tipo === "venta"
                   ? "bg-blue-50 text-blue-700"
                   : "bg-purple-50 text-purple-700"
-              }`}
+              } ${cot.noEjecutado ? "opacity-50" : ""}`}
             >
               {cot.tipo}
             </span>
+            {cot.noEjecutado && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">
+                No ejecutado
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {otCreada && cot.tipo === "servicio" && (
@@ -531,6 +536,17 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
             </button>
             {!editando && (
               <>
+                <button
+                  type="button"
+                  onClick={() => setConfirmarNoEjec(true)}
+                  className={`text-sm px-3 py-1.5 rounded-lg transition border ${
+                    cot.noEjecutado
+                      ? "border-gray-300 text-gray-600 hover:bg-gray-50"
+                      : "border-red-300 text-red-600 hover:bg-red-50"
+                  }`}
+                >
+                  {cot.noEjecutado ? "Reactivar" : "No ejecutado"}
+                </button>
                 <button
                   type="button"
                   onClick={entrarEdicion}
@@ -669,11 +685,11 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
                               : calcSubtotal(item).toFixed(2);
                             return (
                               <tr key={item._key}>
-                                <td className="px-3 py-2 align-top">
+                                <td className="px-3 py-2 align-top w-[52%]">
                                   <textarea
                                     value={item.descripcion}
                                     onChange={(e) => actualizarItem(item._key, "descripcion", e.target.value)}
-                                    required rows={3}
+                                    required rows={4}
                                     className={`w-full resize-y ${INP}`}
                                     placeholder="Descripción"
                                   />
@@ -862,6 +878,50 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
                 className="text-sm bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
               >
                 Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmarNoEjec && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <h4 className="font-semibold text-gray-800">
+              {cot.noEjecutado ? "¿Reactivar cotización?" : "¿Marcar como no ejecutado?"}
+            </h4>
+            <p className="text-sm text-gray-500">
+              {cot.noEjecutado
+                ? <>La cotización <span className="font-mono font-medium">{cot.codigo}</span> volverá a estado activo.</>
+                : <>La cotización <span className="font-mono font-medium">{cot.codigo}</span> quedará tachada e inactiva. Podrás reactivarla cuando quieras.</>}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmarNoEjec(false)}
+                className="text-sm border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  const nuevoEstado = !cot.noEjecutado;
+                  const res = await fetchAuth(`/cotizaciones/${cot._id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ noEjecutado: nuevoEstado }),
+                  });
+                  if (res.ok) {
+                    const actualizada = await res.json();
+                    setCot(actualizada);
+                    onSaved(actualizada);
+                  }
+                  setConfirmarNoEjec(false);
+                }}
+                className={`text-sm px-5 py-2 rounded-lg transition font-medium text-white ${
+                  cot.noEjecutado ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {cot.noEjecutado ? "Reactivar" : "Confirmar"}
               </button>
             </div>
           </div>

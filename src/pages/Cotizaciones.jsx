@@ -483,10 +483,10 @@ export default function Cotizaciones() {
                             : calcSubtotal(item).toFixed(2);
                           return (
                             <tr key={item._key} className="hover:bg-gray-50/50">
-                              <td className="px-3 py-2 align-top">
+                              <td className="px-3 py-2 align-top w-[52%]">
                                 <textarea value={item.descripcion}
                                   onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
-                                  required disabled={ro} rows={3}
+                                  required disabled={ro} rows={4}
                                   className={`w-full resize-y ${ro ? INP_RO : INP}`} />
                               </td>
                               <td className="px-3 py-2 align-top">
@@ -582,19 +582,19 @@ export default function Cotizaciones() {
                     {tipo === "venta"
                       ? items.map((item, idx) => (
                           <tr key={item._key} className="hover:bg-gray-50/50">
-                            <td className="px-3 py-2 text-center text-gray-400">{idx + 1}</td>
-                            <td className="px-3 py-2">
-                              <input value={item.descripcion}
+                            <td className="px-3 py-2 text-center text-gray-400 align-top pt-3">{idx + 1}</td>
+                            <td className="px-3 py-2 align-top">
+                              <textarea value={item.descripcion}
                                 onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
-                                required disabled={ro}
-                                className={`w-full ${ro ? "bg-transparent border-transparent text-sm px-2 py-1" : INP}`} />
+                                required disabled={ro} rows={2}
+                                className={`w-full resize-y ${ro ? "bg-transparent border-transparent text-sm px-2 py-1" : INP}`} />
                             </td>
                             <CeldasNumericas item={item} ro={ro} onUpdate={handleItem} showFechaEntrega={false} />
-                            <td className="px-3 py-2 text-right font-medium text-gray-700">
+                            <td className="px-3 py-2 text-right font-medium text-gray-700 align-top pt-3">
                               {calcSubtotal(item).toFixed(2)}
                             </td>
                             {!ro && (
-                              <td className="px-3 py-2 text-center">
+                              <td className="px-3 py-2 text-center align-top pt-2.5">
                                 <button type="button" onClick={() => eliminarItem(item._key)} className="text-red-400 hover:text-red-600">✕</button>
                               </td>
                             )}
@@ -604,11 +604,11 @@ export default function Cotizaciones() {
                           <Fragment key={item._key}>
                             <tr className="hover:bg-gray-50/50">
                               <td className="px-3 py-2 text-center text-gray-400 align-top pt-3">{idx + 1}</td>
-                              <td className="px-3 py-2">
-                                <input value={item.descripcion}
+                              <td className="px-3 py-2 align-top w-[45%]">
+                                <textarea value={item.descripcion}
                                   onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
-                                  required disabled={ro} placeholder="Título del servicio"
-                                  className={`w-full font-medium ${ro ? "bg-transparent border-transparent text-sm px-2 py-1" : INP}`} />
+                                  required disabled={ro} placeholder="Título del servicio" rows={4}
+                                  className={`w-full resize-y font-medium ${ro ? "bg-transparent border-transparent text-sm px-2 py-1" : INP}`} />
                               </td>
                               <CeldasNumericas item={item} ro={ro} onUpdate={handleItem} />
                               <td className="px-3 py-2 align-top pt-3">
@@ -634,14 +634,14 @@ export default function Cotizaciones() {
                                   {ro ? (
                                     <span className="text-gray-500 text-sm">• {sub.texto}</span>
                                   ) : (
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-gray-300 select-none text-xs">•</span>
-                                      <input value={sub.texto}
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-gray-300 select-none text-xs mt-1.5">•</span>
+                                      <textarea value={sub.texto}
                                         onChange={(e) => handleSubItem(item._key, sub._subKey, e.target.value)}
-                                        placeholder="Descripción del trabajo"
-                                        className="flex-1 border border-gray-200 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-gray-300" />
+                                        placeholder="Descripción del trabajo" rows={3}
+                                        className="flex-1 resize-y border border-gray-200 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-gray-300" />
                                       <button type="button" onClick={() => eliminarSubItem(item._key, sub._subKey)}
-                                        className="text-red-300 hover:text-red-500 text-xs shrink-0">✕</button>
+                                        className="text-red-300 hover:text-red-500 text-xs shrink-0 mt-1">✕</button>
                                     </div>
                                   )}
                                 </td>

@@ -69,7 +69,11 @@ export default function ModalEditarFactura({ factura: inicial, onClose, onGuarda
 
   const anular = async () => {
     setAnulando(true);
-    const res = await fetchAuth(`/facturas/${inicial._id}/anular`, { method: "PATCH" });
+    const res = await fetchAuth(`/facturas/${inicial._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ anulada: !inicial.anulada }),
+    });
     if (res.ok) onGuardada(await res.json());
     setAnulando(false);
     setConfirmandoAnular(false);
@@ -227,9 +231,13 @@ export default function ModalEditarFactura({ factura: inicial, onClose, onGuarda
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-between shrink-0">
-          <button type="button" onClick={() => setConfirmandoAnular(true)} disabled={inicial.anulada}
-            className="text-sm bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-100 disabled:opacity-40 transition">
-            {inicial.anulada ? "Anulada" : "Anular factura"}
+          <button type="button" onClick={() => setConfirmandoAnular(true)}
+            className={`text-sm px-4 py-2 rounded-lg transition border ${
+              inicial.anulada
+                ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                : "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
+            }`}>
+            {inicial.anulada ? "Reactivar factura" : "Anular factura"}
           </button>
           <div className="flex gap-3">
             <button type="button" onClick={onClose}
@@ -248,17 +256,22 @@ export default function ModalEditarFactura({ factura: inicial, onClose, onGuarda
     {confirmandoAnular && (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
         <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
-          <h4 className="font-semibold text-gray-800 mb-2">¿Anular factura?</h4>
-          <p className="text-sm text-gray-500 mb-1">Factura: <span className="font-mono font-medium">{inicial.codigo}</span></p>
-          <p className="text-sm text-red-600 mb-5">Esta acción no se puede deshacer.</p>
+          <h4 className="font-semibold text-gray-800 mb-2">
+            {inicial.anulada ? "¿Reactivar factura?" : "¿Anular factura?"}
+          </h4>
+          <p className="text-sm text-gray-500 mb-5">Factura: <span className="font-mono font-medium">{inicial.codigo}</span></p>
           <div className="flex gap-3 justify-end">
             <button onClick={() => setConfirmandoAnular(false)}
               className="text-sm border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition">
               Cancelar
             </button>
             <button onClick={anular} disabled={anulando}
-              className="text-sm bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 transition">
-              {anulando ? "Anulando…" : "Confirmar anulación"}
+              className={`text-sm text-white px-4 py-2 rounded-lg disabled:opacity-50 transition ${
+                inicial.anulada ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
+              }`}>
+              {anulando
+                ? (inicial.anulada ? "Reactivando…" : "Anulando…")
+                : (inicial.anulada ? "Confirmar reactivación" : "Confirmar anulación")}
             </button>
           </div>
         </div>

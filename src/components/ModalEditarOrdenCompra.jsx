@@ -97,7 +97,11 @@ export default function ModalEditarOrdenCompra({ orden, onClose, onGuardada }) {
 
   const anular = async () => {
     setAnulando(true);
-    const res = await fetchAuth(`/ordenes-compra/${orden._id}/anular`, { method: "PATCH" });
+    const res = await fetchAuth(`/ordenes-compra/${orden._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ anulada: !orden.anulada }),
+    });
     if (res.ok) onGuardada(await res.json());
     setAnulando(false);
     setConfirmandoAnular(false);
@@ -203,9 +207,13 @@ export default function ModalEditarOrdenCompra({ orden, onClose, onGuardada }) {
 
           {/* Footer */}
           <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end shrink-0">
-            <button onClick={() => setConfirmandoAnular(true)} disabled={orden.anulada}
-              className="text-sm bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-100 disabled:opacity-40 transition">
-              {orden.anulada ? "Anulada" : "Anular OC"}
+            <button onClick={() => setConfirmandoAnular(true)}
+              className={`text-sm px-4 py-2 rounded-lg transition border ${
+                orden.anulada
+                  ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                  : "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
+              }`}>
+              {orden.anulada ? "Reactivar OC" : "Anular OC"}
             </button>
             <button onClick={onClose} className="text-sm border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition">
               Cancelar
@@ -230,17 +238,22 @@ export default function ModalEditarOrdenCompra({ orden, onClose, onGuardada }) {
       {confirmandoAnular && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
-            <h4 className="font-semibold text-gray-800 mb-2">¿Anular orden de compra?</h4>
-            <p className="text-sm text-gray-500 mb-1">OC: <span className="font-mono font-medium">{orden.codigo}</span></p>
-            <p className="text-sm text-red-600 mb-5">Esta acción no se puede deshacer.</p>
+            <h4 className="font-semibold text-gray-800 mb-2">
+              {orden.anulada ? "¿Reactivar orden de compra?" : "¿Anular orden de compra?"}
+            </h4>
+            <p className="text-sm text-gray-500 mb-5">OC: <span className="font-mono font-medium">{orden.codigo}</span></p>
             <div className="flex gap-3 justify-end">
               <button onClick={() => setConfirmandoAnular(false)}
                 className="text-sm border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition">
                 Cancelar
               </button>
               <button onClick={anular} disabled={anulando}
-                className="text-sm bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 transition">
-                {anulando ? "Anulando…" : "Confirmar anulación"}
+                className={`text-sm text-white px-4 py-2 rounded-lg disabled:opacity-50 transition ${
+                  orden.anulada ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
+                }`}>
+                {anulando
+                  ? (orden.anulada ? "Reactivando…" : "Anulando…")
+                  : (orden.anulada ? "Confirmar reactivación" : "Confirmar anulación")}
               </button>
             </div>
           </div>

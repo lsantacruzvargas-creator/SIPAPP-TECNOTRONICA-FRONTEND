@@ -20,7 +20,8 @@ export default function ListaCotizaciones() {
   const [cotizaciones, setCotizaciones] = useState([]);
   const [filtros, setFiltros] = useState({
     ...FILTROS_VACIO,
-    oc: location.state?.filtroOC || "",
+    oc:      location.state?.filtroOC      || "",
+    empresa: location.state?.filtroEmpresa || "",
   });
   const [seleccionada, setSeleccionada] = useState(null);
   const [otsPorCot, setOtsPorCot] = useState(new Map());
@@ -236,26 +237,40 @@ export default function ListaCotizaciones() {
               filtradas.flatMap((c) => {
                 const ots = otsPorCot.get(c._id) || [];
                 const oc  = ocPorCot.get(c._id);
+                const noEjec = c.noEjecutado;
+                const rowCls = `hover:bg-gray-50 cursor-pointer ${noEjec ? "opacity-50" : ""}`;
+                const tdCls  = noEjec ? "line-through" : "";
                 const tipoBadge = (
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
                     c.tipo === "venta" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700"
-                  }`}>{c.tipo}</span>
+                  } ${noEjec ? "opacity-60" : ""}`}>{c.tipo}</span>
                 );
                 const ocCell = oc?.numeroOrden
-                  ? <span className="font-mono text-gray-700">{oc.numeroOrden}</span>
+                  ? <span className={`font-mono text-gray-700 ${tdCls}`}>{oc.numeroOrden}</span>
                   : <span className="text-gray-300">—</span>;
+
+                const primerItem = c.tipo === "servicio"
+                  ? (c.items?.find(i => i.grupo === "I") || c.items?.[0])
+                  : c.items?.[0];
+                const equipoTextoItem = primerItem?.descripcion || null;
 
                 if (ots.length === 0) {
                   return [(
-                    <tr key={c._id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSeleccionada(c)}>
-                      <td className="px-4 py-3 font-mono text-sm text-black">{c.codigo}</td>
+                    <tr key={c._id} className={rowCls} onClick={() => setSeleccionada(c)}>
+                      <td className={`px-4 py-3 font-mono text-sm text-black ${tdCls}`}>{c.codigo}</td>
                       <td className="px-4 py-3">{tipoBadge}</td>
                       <td className="px-4 py-3 text-center text-gray-300">—</td>
-                      <td className="px-4 py-3 text-gray-600">{c.empresa?.razonSocial || <span className="text-gray-400">Sin empresa</span>}</td>
-                      <td className="px-4 py-3">{c.titulo}</td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">—</td>
-                      <td className="px-4 py-3 text-center text-gray-500">{new Date(c.fecha).toLocaleDateString("es-PE", { timeZone: "UTC" })}</td>
-                      <td className="px-4 py-3 text-right font-medium">{(Number(c.total) / 1.18).toFixed(2)}</td>
+                      <td className={`px-4 py-3 text-gray-600 ${tdCls}`}>{c.empresa?.razonSocial || <span className="text-gray-400">Sin empresa</span>}</td>
+                      <td className={`px-4 py-3 ${tdCls}`}>{c.titulo}</td>
+                      <td className={`px-4 py-3 text-xs text-gray-500 ${tdCls}`}>
+                        {equipoTextoItem
+                          ? equipoTextoItem.length > 60
+                            ? equipoTextoItem.slice(0, 60) + "…"
+                            : equipoTextoItem
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className={`px-4 py-3 text-center text-gray-500 ${tdCls}`}>{new Date(c.fecha).toLocaleDateString("es-PE", { timeZone: "UTC" })}</td>
+                      <td className={`px-4 py-3 text-right font-medium ${tdCls}`}>{(Number(c.total) / 1.18).toFixed(2)}</td>
                       <td className="px-4 py-3 text-center">{ocCell}</td>
                     </tr>
                   )];
@@ -267,15 +282,15 @@ export default function ListaCotizaciones() {
                     ? [ie.planta, ie.tipoEquipo, [ie.marca, ie.modelo].filter(Boolean).join("/")].filter(Boolean).join(" · ")
                     : ot.codigo;
                   return (
-                    <tr key={`${c._id}-${ot._id}`} className="hover:bg-gray-50 cursor-pointer" onClick={() => setSeleccionada(c)}>
-                      <td className="px-4 py-3 font-mono text-sm text-black">{c.codigo}</td>
+                    <tr key={`${c._id}-${ot._id}`} className={rowCls} onClick={() => setSeleccionada(c)}>
+                      <td className={`px-4 py-3 font-mono text-sm text-black ${tdCls}`}>{c.codigo}</td>
                       <td className="px-4 py-3">{idx === 0 ? tipoBadge : null}</td>
-                      <td className="px-4 py-3 text-center font-mono text-xs text-emerald-700">{ot.codigo}</td>
-                      <td className="px-4 py-3 text-gray-600">{idx === 0 ? (c.empresa?.razonSocial || <span className="text-gray-400">Sin empresa</span>) : null}</td>
-                      <td className="px-4 py-3">{idx === 0 ? c.titulo : null}</td>
-                      <td className="px-4 py-3 text-xs text-gray-500">{equipoTxt}</td>
-                      <td className="px-4 py-3 text-center text-gray-500">{idx === 0 ? new Date(c.fecha).toLocaleDateString("es-PE", { timeZone: "UTC" }) : null}</td>
-                      <td className="px-4 py-3 text-right font-medium">{idx === 0 ? (Number(c.total) / 1.18).toFixed(2) : null}</td>
+                      <td className={`px-4 py-3 text-center font-mono text-xs text-emerald-700 ${tdCls}`}>{ot.codigo}</td>
+                      <td className={`px-4 py-3 text-gray-600 ${tdCls}`}>{idx === 0 ? (c.empresa?.razonSocial || <span className="text-gray-400">Sin empresa</span>) : null}</td>
+                      <td className={`px-4 py-3 ${tdCls}`}>{idx === 0 ? c.titulo : null}</td>
+                      <td className={`px-4 py-3 text-xs text-gray-500 ${tdCls}`}>{equipoTxt}</td>
+                      <td className={`px-4 py-3 text-center text-gray-500 ${tdCls}`}>{idx === 0 ? new Date(c.fecha).toLocaleDateString("es-PE", { timeZone: "UTC" }) : null}</td>
+                      <td className={`px-4 py-3 text-right font-medium ${tdCls}`}>{idx === 0 ? (Number(c.total) / 1.18).toFixed(2) : null}</td>
                       <td className="px-4 py-3 text-center">{ocCell}</td>
                     </tr>
                   );

@@ -53,6 +53,9 @@ export default function IngresoEquipos() {
   const [guardando, setGuardando]   = useState(false);
   const [error, setError]           = useState("");
   const [crearOT, setCrearOT]       = useState(false);
+  const [confirmarAnular, setConfirmarAnular] = useState(false);
+  const [anulando, setAnulando]     = useState(false);
+  const [anuladoFiltro, setAnuladoFiltro] = useState("");
 
   const cargar = () =>
     Promise.all([
@@ -135,6 +138,22 @@ export default function IngresoEquipos() {
     setGuardando(false);
   };
 
+  const anular = async () => {
+    setAnulando(true);
+    const res = await fetchAuth(`/ingresos-equipo/${seleccionado._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ anulada: !seleccionado.anulada }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setIngresos((prev) => prev.map((i) => i._id === data._id ? data : i));
+      setSeleccionado(data);
+    }
+    setAnulando(false);
+    setConfirmarAnular(false);
+  };
+
   const aniosLista = [...new Set(ingresos.map((i) => new Date(i.fechaIngreso).getUTCFullYear()))].sort((a, b) => b - a);
 
   const empresasLista = [
@@ -163,10 +182,11 @@ export default function IngresoEquipos() {
     const matchMes     = !mesFiltro     || fecha.getUTCMonth() + 1 === parseInt(mesFiltro);
     const matchEmpresa = !empresaFiltro || i.empresa?._id === empresaFiltro;
     const matchPlanta  = !plantaFiltro  || i.planta === plantaFiltro;
-    return matchBusq && matchEstado && matchAnio && matchMes && matchEmpresa && matchPlanta;
+    const matchAnulado = !anuladoFiltro || (anuladoFiltro === "anulado" ? i.anulada : !i.anulada);
+    return matchBusq && matchEstado && matchAnio && matchMes && matchEmpresa && matchPlanta && matchAnulado;
   });
 
-  const hayFiltro = busqueda || estadoFiltro || anioFiltro || mesFiltro || empresaFiltro || plantaFiltro;
+  const hayFiltro = busqueda || estadoFiltro || anioFiltro || mesFiltro || empresaFiltro || plantaFiltro || anuladoFiltro;
 
   return (
     <div className="p-6 mx-auto">
@@ -244,6 +264,16 @@ export default function IngresoEquipos() {
           ))}
         </select>
 
+        <select
+          value={anuladoFiltro}
+          onChange={(e) => setAnuladoFiltro(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+        >
+          <option value="">Vigentes y anulados</option>
+          <option value="vigente">Vigentes</option>
+          <option value="anulado">Anulados</option>
+        </select>
+
         <input
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
@@ -253,7 +283,7 @@ export default function IngresoEquipos() {
 
         {hayFiltro && (
           <button
-            onClick={() => { setBusqueda(""); setEstadoFiltro(""); setAnioFiltro(""); setMesFiltro(""); setEmpresaFiltro(""); setPlantaFiltro(""); }}
+            onClick={() => { setBusqueda(""); setEstadoFiltro(""); setAnioFiltro(""); setMesFiltro(""); setEmpresaFiltro(""); setPlantaFiltro(""); setAnuladoFiltro(""); }}
             className="text-sm text-gray-400 hover:text-gray-700 transition"
           >
             Limpiar
@@ -287,14 +317,15 @@ export default function IngresoEquipos() {
               </tr>
             ) : filtrados.map((i) => {
               const ot = otMap[i._id];
+              const tdCls = i.anulada ? "line-through" : "";
               return (
                 <tr
                   key={i._id}
-                  className="hover:bg-gray-50 cursor-pointer"
+                  className={`hover:bg-gray-50 cursor-pointer ${i.anulada ? "opacity-50" : ""}`}
                   onClick={() => abrirEditar(i)}
                 >
-                  <td className="px-4 py-3 font-mono text-xs text-blue-600">{i.codigo}</td>
-                  <td className="px-4 py-3 text-gray-700">
+                  <td className={`px-4 py-3 font-mono text-xs text-blue-600 ${tdCls}`}>{i.codigo}</td>
+                  <td className={`px-4 py-3 text-gray-700 ${tdCls}`}>
                     {i.empresa ? (
                       <span>
                         <span className="font-medium">{i.empresa.alias}</span>
@@ -302,21 +333,23 @@ export default function IngresoEquipos() {
                       </span>
                     ) : <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-gray-600 text-sm">
+                  <td className={`px-4 py-3 text-gray-600 text-sm ${tdCls}`}>
                     {i.planta || <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-gray-700">{i.tipoEquipo}</td>
-                  <td className="px-4 py-3 text-gray-500">
+                  <td className={`px-4 py-3 text-gray-700 ${tdCls}`}>{i.tipoEquipo}</td>
+                  <td className={`px-4 py-3 text-gray-500 ${tdCls}`}>
                     {[i.marca, i.modelo].filter(Boolean).join(" / ") || <span className="text-gray-300">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-center text-gray-500">
+                  <td className={`px-4 py-3 text-center text-gray-500 ${tdCls}`}>
                     {new Date(i.fechaIngreso).toLocaleDateString("es-PE", { timeZone: "UTC" })}
                   </td>
-                  <td className="px-4 py-3 text-center font-mono text-xs text-emerald-600">
+                  <td className={`px-4 py-3 text-center font-mono text-xs text-emerald-600 ${tdCls}`}>
                     {ot ? ot.codigo : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {ot ? (
+                    {i.anulada ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700">Anulado</span>
+                    ) : ot ? (
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${badgeOT(ot.estado)}`}>
                         {ot.estado}
                       </span>
@@ -324,7 +357,7 @@ export default function IngresoEquipos() {
                       <span className="text-gray-300 text-xs">Sin OT</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center font-mono text-xs text-gray-700">
+                  <td className={`px-4 py-3 text-center font-mono text-xs text-gray-700 ${tdCls}`}>
                     {i.numeroGuiaEmision || <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -356,12 +389,24 @@ export default function IngresoEquipos() {
               </div>
               <div className="flex items-center gap-2">
                 {seleccionado && (
-                  <button
-                    onClick={() => setCrearOT(true)}
-                    className="text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition font-medium"
-                  >
-                    Crear OT
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setConfirmarAnular(true)}
+                      className={`text-sm px-3 py-1.5 rounded-lg transition font-medium border ${
+                        seleccionado.anulada
+                          ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                          : "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
+                      }`}
+                    >
+                      {seleccionado.anulada ? "Reactivar" : "Anular ingreso"}
+                    </button>
+                    <button
+                      onClick={() => setCrearOT(true)}
+                      className="text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 transition font-medium"
+                    >
+                      Crear OT
+                    </button>
+                  </>
                 )}
                 <button onClick={cerrar} className="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
               </div>
@@ -522,6 +567,34 @@ export default function IngresoEquipos() {
               <button onClick={guardar} disabled={guardando}
                 className="text-sm bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition font-medium">
                 {guardando ? "Guardando…" : seleccionado ? "Guardar cambios" : "Registrar ingreso"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmarAnular && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
+            <h4 className="font-semibold text-gray-800 mb-2">
+              {seleccionado?.anulada ? "¿Reactivar ingreso?" : "¿Anular ingreso de equipo?"}
+            </h4>
+            <p className="text-sm text-gray-500 mb-5">
+              <span className="font-mono font-medium">{seleccionado?.codigo}</span>
+              {!seleccionado?.anulada && <span className="block mt-1 text-xs text-gray-400">La OT vinculada también aparecerá como anulada.</span>}
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setConfirmarAnular(false)}
+                className="text-sm border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition">
+                Cancelar
+              </button>
+              <button onClick={anular} disabled={anulando}
+                className={`text-sm text-white px-4 py-2 rounded-lg disabled:opacity-50 transition ${
+                  seleccionado?.anulada ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
+                }`}>
+                {anulando
+                  ? (seleccionado?.anulada ? "Reactivando…" : "Anulando…")
+                  : (seleccionado?.anulada ? "Confirmar reactivación" : "Confirmar anulación")}
               </button>
             </div>
           </div>
