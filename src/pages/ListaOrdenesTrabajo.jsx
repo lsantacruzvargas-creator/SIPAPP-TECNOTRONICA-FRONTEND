@@ -171,13 +171,14 @@ export default function ListaOrdenesTrabajo() {
               <th className="px-4 py-3 text-center">Estado</th>
               <th className="px-4 py-3 text-left">Personal</th>
               <th className="px-4 py-3 text-center">F. Entrega</th>
+              <th className="px-4 py-3 text-center">Informe</th>
               <th className="px-4 py-3 text-center">F. Creación</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filtradas.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
                   {Object.values(filtros).some(Boolean)
                     ? "Sin resultados para los filtros aplicados"
                     : "Sin órdenes de trabajo registradas"}
@@ -229,6 +230,12 @@ export default function ListaOrdenesTrabajo() {
                     {o.fechaEntrega
                       ? new Date(o.fechaEntrega).toLocaleDateString("es-PE", { timeZone: "UTC" })
                       : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {o.tieneInforme
+                      ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Sí</span>
+                      : <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-400">No</span>
+                    }
                   </td>
                   <td className={`px-4 py-3 text-center text-gray-400 text-xs ${tdCls}`}>
                     {new Date(o.createdAt).toLocaleDateString("es-PE")}

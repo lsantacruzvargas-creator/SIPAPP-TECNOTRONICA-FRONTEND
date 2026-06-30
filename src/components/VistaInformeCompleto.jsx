@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { imgUrl } from "../utils/fetchAuth";
+import { exportarInformeWord } from "../utils/exportarInformeWord";
 
 const descargarImagen = async (url) => {
   try {
@@ -171,6 +173,23 @@ function AvanceCompleto({ avance, numero }) {
 export default function VistaInformeCompleto({ ordenTrabajo, avances, onClose, onModificar }) {
   const empresa = ordenTrabajo.empresa;
 
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [form, setForm] = useState({ nroInforme: "", atencion: "" });
+  const [generando, setGenerando] = useState(false);
+
+  const handleChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const handleGenerar = async (e) => {
+    e.preventDefault();
+    setGenerando(true);
+    try {
+      await exportarInformeWord(avances, ordenTrabajo, form);
+    } finally {
+      setGenerando(false);
+      setMostrarForm(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[70] bg-gray-50 flex flex-col">
 
@@ -218,6 +237,63 @@ export default function VistaInformeCompleto({ ordenTrabajo, avances, onClose, o
         </div>
       </div>
 
+      {/* Mini-formulario Word */}
+      {mostrarForm && (
+        <div className="fixed inset-0 z-[80] bg-black/40 flex items-center justify-center">
+          <form
+            onSubmit={handleGenerar}
+            className="bg-white rounded-2xl shadow-xl p-7 w-full max-w-sm space-y-4"
+          >
+            <h3 className="text-base font-bold text-gray-800">Datos del informe técnico</h3>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                N° de informe
+              </label>
+              <input
+                name="nroInforme"
+                value={form.nroInforme}
+                onChange={handleChange}
+                required
+                placeholder="Ej: 2576"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Atención
+              </label>
+              <input
+                name="atencion"
+                value={form.atencion}
+                onChange={handleChange}
+                required
+                placeholder="Ej: Ing. Isael Norabuena"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300"
+              />
+            </div>
+
+<div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setMostrarForm(false)}
+                className="flex-1 text-sm border border-gray-200 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={generando}
+                className="flex-1 text-sm bg-blue-700 text-white px-4 py-2 rounded-lg hover:bg-blue-800 disabled:opacity-50 transition font-medium"
+              >
+                {generando ? "Generando…" : "Generar Word"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="bg-white border-t border-gray-100 px-8 py-4 flex gap-3 shrink-0">
         <button
@@ -226,6 +302,13 @@ export default function VistaInformeCompleto({ ordenTrabajo, avances, onClose, o
           className="text-sm border border-gray-300 px-5 py-2.5 rounded-lg hover:bg-gray-50 transition"
         >
           ← Volver
+        </button>
+        <button
+          type="button"
+          onClick={() => setMostrarForm(true)}
+          className="text-sm bg-blue-700 text-white px-5 py-2.5 rounded-lg hover:bg-blue-800 transition font-medium"
+        >
+          Exportar Word
         </button>
         <button
           type="button"
