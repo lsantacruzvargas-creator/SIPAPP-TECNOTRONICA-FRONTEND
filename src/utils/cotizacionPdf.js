@@ -203,10 +203,10 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
       doc.setFont("helvetica", "normal");
       item.subItems.forEach((s) => {
         saltoSiNecesario();
-        const subLines = doc.splitTextToSize(`  • ${s}`, MAX_W - 6);
+        const subLines = doc.splitTextToSize(s, MAX_W - 6);
         const rectH = subLines.length * LINE_H + 2;
         doc.rect(margin, y - 3, MAX_W + 3, rectH);
-        doc.text(subLines, margin + 1, y + 1);
+        doc.text(subLines, margin + 1, y + 3);
         y += rectH;
       });
     }

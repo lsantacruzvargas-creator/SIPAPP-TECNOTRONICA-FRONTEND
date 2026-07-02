@@ -14,11 +14,11 @@ import CeldasNumericas from "./CeldasNumericas";
 // Módulo-nivel: evita desmontaje/remontaje en cada render (previene pérdida de foco)
 function FilaDescripcionEditable({ item, tipo, onUpdate, onAddSub, onUpdateSub, onDeleteSub }) {
   return (
-    <td className="px-3 py-2 align-top w-[45%]">
+    <td className="px-3 py-2 align-top w-[65%]">
       <textarea
         value={item.descripcion}
         onChange={(e) => onUpdate(item._key, "descripcion", e.target.value)}
-        required rows={tipo === "servicio" ? 4 : 2}
+        required rows={tipo === "servicio" ? 6 : 5}
         className={`w-full resize-y ${INP}`}
         placeholder="Descripción"
       />
@@ -55,6 +55,16 @@ function FilaDescripcionEditable({ item, tipo, onUpdate, onAddSub, onUpdateSub, 
     </td>
   );
 }
+
+const ESTADOS_COT = [
+  { valor: "pendiente aprobacion", label: "Pendiente aprobación", cls: "bg-gray-100 text-gray-600" },
+  { valor: "aprobada",             label: "Aprobada",             cls: "bg-emerald-50 text-emerald-700" },
+  { valor: "en progreso",          label: "En progreso",          cls: "bg-blue-50 text-blue-700" },
+  { valor: "a la espera de OC",    label: "A la espera de OC",    cls: "bg-amber-50 text-amber-700" },
+  { valor: "en facturacion",       label: "En facturación",       cls: "bg-purple-50 text-purple-700" },
+  { valor: "cerrada",              label: "Cerrada",              cls: "bg-teal-50 text-teal-700" },
+  { valor: "sin ejecutar",         label: "Sin ejecutar",         cls: "bg-red-50 text-red-600" },
+];
 
 function PanelIngresoEquipo({ ie }) {
   if (!ie) return null;
@@ -333,11 +343,14 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
   const [otCreada, setOtCreada] = useState(false);
   const [confirmarOC, setConfirmarOC] = useState(false);
   const [crearOC, setCrearOC]         = useState(false);
-  const [confirmarNoEjec, setConfirmarNoEjec] = useState(false);
+  const [estadoCot, setEstadoCot] = useState(inicial.estado || "pendiente aprobacion");
   const [form, setForm] = useState({});
   const [items, setItems] = useState([]);
   const [empresas, setEmpresas] = useState([]);
   const [ie, setIe] = useState(null);
+  const [ots, setOts] = useState([]);
+  const [otVinculadaId, setOtVinculadaId] = useState("");
+  const [otOriginalId, setOtOriginalId] = useState("");
 
   useEffect(() => {
     const empresaId = cot.empresa?._id || cot.empresa;
@@ -347,15 +360,23 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
       });
     }
 
-    fetchAuth("/ordenes-trabajo").then((r) => r.ok && r.json()).then((ots) => {
-      if (!ots) return;
-      const ot = ots.find((o) => o.cotizacion?._id === cot._id && o.ingresoEquipo);
+    fetchAuth("/ordenes-trabajo").then((r) => r.ok && r.json()).then((otsData) => {
+      if (!otsData) return;
+      const ot = otsData.find((o) => o.cotizacion?._id === cot._id && o.ingresoEquipo);
       setIe(ot?.ingresoEquipo || null);
+      setOtOriginalId(ot?._id || "");
+      setOtVinculadaId(ot?._id || "");
     });
   }, [cot._id]);
 
   const entrarEdicion = () => {
-    fetchAuth("/empresas").then((r) => r.ok && r.json().then(setEmpresas));
+    Promise.all([
+      fetchAuth("/empresas").then((r) => r.ok && r.json()),
+      fetchAuth("/ordenes-trabajo").then((r) => r.ok && r.json()),
+    ]).then(([emps, otsData]) => {
+      if (emps) setEmpresas(emps);
+      if (otsData) setOts(otsData.filter((o) => o.ingresoEquipo));
+    });
     setForm({
       tipo: cot.tipo,
       empresa: cot.empresa?._id || "",
@@ -485,6 +506,24 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
 
     if (res.ok) {
       const actualizada = await res.json();
+
+      if (otVinculadaId && otVinculadaId !== otOriginalId) {
+        await fetchAuth(`/ordenes-trabajo/${otVinculadaId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cotizacion: cot._id }),
+        });
+        setOtOriginalId(otVinculadaId);
+      }
+      if (!otVinculadaId && otOriginalId) {
+        await fetchAuth(`/ordenes-trabajo/${otOriginalId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cotizacion: "" }),
+        });
+        setOtOriginalId("");
+      }
+
       setCot(actualizada);
       setEditando(false);
       onSaved(actualizada);
@@ -492,33 +531,53 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
     setGuardando(false);
   };
 
+  const cambiarEstado = async (nuevoEstado) => {
+    setEstadoCot(nuevoEstado);
+    const res = await fetchAuth(`/cotizaciones/${cot._id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ estado: nuevoEstado, noEjecutado: nuevoEstado === "sin ejecutar" }),
+    });
+    if (res.ok) {
+      const actualizada = await res.json();
+      setCot(actualizada);
+      onSaved?.(actualizada);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white shadow-2xl w-screen max-h-[90vh] flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-3">
-            <span className={`font-mono text-sm text-gray-500 ${cot.noEjecutado ? "line-through" : ""}`}>{cot.codigo}</span>
+            <span className="font-mono text-sm text-gray-500">{cot.codigo}</span>
             <span
               className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
                 cot.tipo === "venta"
                   ? "bg-blue-50 text-blue-700"
                   : "bg-purple-50 text-purple-700"
-              } ${cot.noEjecutado ? "opacity-50" : ""}`}
+              }`}
             >
               {cot.tipo}
             </span>
-            {cot.noEjecutado && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-600 border border-red-200">
-                No ejecutado
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-2">
             {otCreada && cot.tipo === "servicio" && (
               <span className="text-xs text-emerald-600 font-medium">✓ OT creada</span>
             )}
+            <select
+              value={estadoCot}
+              onChange={(e) => cambiarEstado(e.target.value)}
+              className={`text-sm border border-gray-300 px-3 py-1.5 rounded-lg cursor-pointer focus:outline-none transition font-medium ${
+                ESTADOS_COT.find((e) => e.valor === estadoCot)?.cls || "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {ESTADOS_COT.map(({ valor, label }) => (
+                <option key={valor} value={valor}>{label}</option>
+              ))}
+            </select>
             <button
               type="button"
               onClick={() => {
@@ -536,17 +595,7 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
             </button>
             {!editando && (
               <>
-                <button
-                  type="button"
-                  onClick={() => setConfirmarNoEjec(true)}
-                  className={`text-sm px-3 py-1.5 rounded-lg transition border ${
-                    cot.noEjecutado
-                      ? "border-gray-300 text-gray-600 hover:bg-gray-50"
-                      : "border-red-300 text-red-600 hover:bg-red-50"
-                  }`}
-                >
-                  {cot.noEjecutado ? "Reactivar" : "No ejecutado"}
-                </button>
+
                 <button
                   type="button"
                   onClick={entrarEdicion}
@@ -646,8 +695,25 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
                   <input name="tarjeta" value={form.tarjeta} onChange={handleForm} className={`w-full ${INP}`} />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Equipo</label>
-                  <input name="equipo" value={form.equipo} onChange={handleForm} className={`w-full ${INP}`} />
+                  <label className="block text-xs text-gray-500 mb-1">Equipo (OT vinculada)</label>
+                  <select
+                    value={otVinculadaId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setOtVinculadaId(id);
+                      const ot = ots.find((o) => o._id === id);
+                      setIe(ot?.ingresoEquipo || null);
+                      setForm((f) => ({ ...f, equipo: ot?.ingresoEquipo?.tipoEquipo || "" }));
+                    }}
+                    className={`w-full ${INP}`}
+                  >
+                    <option value="">Sin OT vinculada</option>
+                    {ots.map((o) => (
+                      <option key={o._id} value={o._id}>
+                        {o.codigo} — {o.ingresoEquipo?.tipoEquipo || o.titulo}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Garantía</label>
@@ -685,11 +751,11 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
                               : calcSubtotal(item).toFixed(2);
                             return (
                               <tr key={item._key}>
-                                <td className="px-3 py-2 align-top w-[52%]">
+                                <td className="px-3 py-2 align-top w-[72%]">
                                   <textarea
                                     value={item.descripcion}
                                     onChange={(e) => actualizarItem(item._key, "descripcion", e.target.value)}
-                                    required rows={4}
+                                    required rows={6}
                                     className={`w-full resize-y ${INP}`}
                                     placeholder="Descripción"
                                   />
@@ -884,49 +950,6 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
         </div>
       )}
 
-      {confirmarNoEjec && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-            <h4 className="font-semibold text-gray-800">
-              {cot.noEjecutado ? "¿Reactivar cotización?" : "¿Marcar como no ejecutado?"}
-            </h4>
-            <p className="text-sm text-gray-500">
-              {cot.noEjecutado
-                ? <>La cotización <span className="font-mono font-medium">{cot.codigo}</span> volverá a estado activo.</>
-                : <>La cotización <span className="font-mono font-medium">{cot.codigo}</span> quedará tachada e inactiva. Podrás reactivarla cuando quieras.</>}
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setConfirmarNoEjec(false)}
-                className="text-sm border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={async () => {
-                  const nuevoEstado = !cot.noEjecutado;
-                  const res = await fetchAuth(`/cotizaciones/${cot._id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ noEjecutado: nuevoEstado }),
-                  });
-                  if (res.ok) {
-                    const actualizada = await res.json();
-                    setCot(actualizada);
-                    onSaved(actualizada);
-                  }
-                  setConfirmarNoEjec(false);
-                }}
-                className={`text-sm px-5 py-2 rounded-lg transition font-medium text-white ${
-                  cot.noEjecutado ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"
-                }`}
-              >
-                {cot.noEjecutado ? "Reactivar" : "Confirmar"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {crearOC && (
         <ModalOrdenCompra

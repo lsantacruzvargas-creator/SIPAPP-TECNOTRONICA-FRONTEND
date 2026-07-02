@@ -9,7 +9,7 @@ export const calcSubtotal = (item) =>
   parseFloat((item.cantidad * item.precio).toFixed(2));
 
 export const INP =
-  "border border-gray-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400";
+  "border border-gray-200 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-1 focus:ring-gray-400";
 export const INP_RO = "bg-transparent border-transparent text-sm px-2 py-1";
 
 export const itemVacioVenta = () => ({

@@ -14,6 +14,30 @@ const FILTROS_VACIO = { empresa: "", planta: "", ano: "", mes: "", tipo: "", oc:
 const codigosOTs = (ots) =>
   ots?.length ? ots.map((o) => o.codigo).join(", ") : null;
 
+const badgeEstadoCot = (estado) => {
+  const map = {
+    "pendiente aprobacion": "bg-gray-100 text-gray-600",
+    "aprobada":             "bg-emerald-50 text-emerald-700",
+    "en progreso":          "bg-blue-50 text-blue-700",
+    "a la espera de OC":    "bg-amber-50 text-amber-700",
+    "en facturacion":       "bg-purple-50 text-purple-700",
+    "cerrada":              "bg-teal-50 text-teal-700",
+    "sin ejecutar":         "bg-red-50 text-red-600",
+  };
+  const labelMap = {
+    "pendiente aprobacion": "Pend. aprobación",
+    "aprobada":             "Aprobada",
+    "en progreso":          "En progreso",
+    "a la espera de OC":    "Espera OC",
+    "en facturacion":       "En facturación",
+    "cerrada":              "Cerrada",
+    "sin ejecutar":         "Sin ejecutar",
+  };
+  const cls = map[estado] || "bg-gray-100 text-gray-500";
+  const label = labelMap[estado] || estado || "—";
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{label}</span>;
+};
+
 export default function ListaCotizaciones() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -217,7 +241,7 @@ export default function ListaCotizaciones() {
               <th className="px-4 py-3 text-left">Tipo</th>
               <th className="px-4 py-3 text-center">N° OT</th>
               <th className="px-4 py-3 text-left">Empresa</th>
-              <th className="px-4 py-3 text-left">Título</th>
+              <th className="px-4 py-3 text-center">Estado</th>
               <th className="px-4 py-3 text-left">Equipo</th>
               <th className="px-4 py-3 text-center">Fecha</th>
               <th className="px-4 py-3 text-right">Total sin IGV</th>
@@ -261,7 +285,7 @@ export default function ListaCotizaciones() {
                       <td className="px-4 py-3">{tipoBadge}</td>
                       <td className="px-4 py-3 text-center text-gray-300">—</td>
                       <td className={`px-4 py-3 text-gray-600 ${tdCls}`}>{c.empresa?.razonSocial || <span className="text-gray-400">Sin empresa</span>}</td>
-                      <td className={`px-4 py-3 ${tdCls}`}>{c.titulo}</td>
+                      <td className="px-4 py-3 text-center">{badgeEstadoCot(c.estado)}</td>
                       <td className={`px-4 py-3 text-xs text-gray-500 ${tdCls}`}>
                         {equipoTextoItem
                           ? equipoTextoItem.length > 60
@@ -287,7 +311,7 @@ export default function ListaCotizaciones() {
                       <td className="px-4 py-3">{idx === 0 ? tipoBadge : null}</td>
                       <td className={`px-4 py-3 text-center font-mono text-xs text-emerald-700 ${tdCls}`}>{ot.codigo}</td>
                       <td className={`px-4 py-3 text-gray-600 ${tdCls}`}>{idx === 0 ? (c.empresa?.razonSocial || <span className="text-gray-400">Sin empresa</span>) : null}</td>
-                      <td className={`px-4 py-3 ${tdCls}`}>{idx === 0 ? c.titulo : null}</td>
+                      <td className="px-4 py-3 text-center">{idx === 0 ? badgeEstadoCot(c.estado) : null}</td>
                       <td className={`px-4 py-3 text-xs text-gray-500 ${tdCls}`}>{equipoTxt}</td>
                       <td className={`px-4 py-3 text-center text-gray-500 ${tdCls}`}>{idx === 0 ? new Date(c.fecha).toLocaleDateString("es-PE", { timeZone: "UTC" }) : null}</td>
                       <td className={`px-4 py-3 text-right font-medium ${tdCls}`}>{idx === 0 ? (Number(c.total) / 1.18).toFixed(2) : null}</td>

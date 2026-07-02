@@ -207,7 +207,7 @@ export default function Cotizaciones() {
   const ro = !!guardado;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-6 w-[95%] mx-auto">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800">Nueva cotización</h2>
         {guardado && <span className="font-mono text-sm text-gray-400">{guardado.codigo}</span>}
@@ -374,8 +374,8 @@ export default function Cotizaciones() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Fecha</label>
-              <input type="date" name="fecha" value={form.fecha} readOnly
-                className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-500 cursor-not-allowed" />
+              <input type="date" name="fecha" value={form.fecha} onChange={handleChange}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Atención</label>
@@ -483,7 +483,7 @@ export default function Cotizaciones() {
                             : calcSubtotal(item).toFixed(2);
                           return (
                             <tr key={item._key} className="hover:bg-gray-50/50">
-                              <td className="px-3 py-2 align-top w-[52%]">
+                              <td className="px-3 py-2 align-top w-[62%]">
                                 <textarea value={item.descripcion}
                                   onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
                                   required disabled={ro} rows={4}
@@ -583,7 +583,7 @@ export default function Cotizaciones() {
                       ? items.map((item, idx) => (
                           <tr key={item._key} className="hover:bg-gray-50/50">
                             <td className="px-3 py-2 text-center text-gray-400 align-top pt-3">{idx + 1}</td>
-                            <td className="px-3 py-2 align-top">
+                            <td className="px-3 py-2 align-top w-[60%]">
                               <textarea value={item.descripcion}
                                 onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
                                 required disabled={ro} rows={2}
@@ -604,21 +604,21 @@ export default function Cotizaciones() {
                           <Fragment key={item._key}>
                             <tr className="hover:bg-gray-50/50">
                               <td className="px-3 py-2 text-center text-gray-400 align-top pt-3">{idx + 1}</td>
-                              <td className="px-3 py-2 align-top w-[45%]">
+                              <td className="px-3 py-2 align-top w-[60%]">
                                 <textarea value={item.descripcion}
                                   onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
                                   required disabled={ro} placeholder="Título del servicio" rows={4}
                                   className={`w-full resize-y font-medium ${ro ? "bg-transparent border-transparent text-sm px-2 py-1" : INP}`} />
                               </td>
                               <CeldasNumericas item={item} ro={ro} onUpdate={handleItem} />
-                              <td className="px-3 py-2 align-top pt-3">
+                              <td className="px-3 py-2 text-center align-middle">
                                 <input type="number" min="0" max="100" step="0.01"
                                   value={item.descuento || 0}
                                   onChange={(e) => handleItem(item._key, "descuento", parseFloat(e.target.value) || 0)}
                                   disabled={ro}
                                   className={`w-16 text-center ${ro ? INP_RO : INP}`} />
                               </td>
-                              <td className="px-3 py-2 text-right font-medium text-gray-700 align-top pt-3">
+                              <td className="px-3 py-2 text-right font-medium text-gray-700 align-middle">
                                 {(calcSubtotal(item) * (1 - (item.descuento || 0) / 100)).toFixed(2)}
                               </td>
                               {!ro && (

@@ -104,6 +104,42 @@ function LabelDona({ cx, cy, midAngle, innerRadius, outerRadius, value }) {
   );
 }
 
+// ── Card OT en curso ─────────────────────────────────────────────────────────
+function OtCard({ ot, onClick }) {
+  const esEnProgreso = ot.estado === "en progreso";
+  const equipo = ot.ingresoEquipo?.tipoEquipo || ot.ingresoEquipo?.marca || "Sin equipo registrado";
+  return (
+    <div
+      onClick={onClick}
+      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col gap-2 cursor-pointer hover:shadow-md hover:border-gray-200 transition-all"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-mono text-xs text-gray-400">{ot.codigo}</span>
+        <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize shrink-0 ${
+          esEnProgreso ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
+        }`}>
+          {ot.estado}
+        </span>
+      </div>
+      <p className="font-semibold text-gray-800 text-sm leading-tight">{equipo}</p>
+      {ot.titulo && <p className="text-xs text-gray-500 leading-snug line-clamp-2">{ot.titulo}</p>}
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+        {ot.empresa && (
+          <span className="text-xs text-gray-400">{ot.empresa.alias || ot.empresa.razonSocial}</span>
+        )}
+        {ot.personalAsignado && (
+          <span className="text-xs text-gray-400">{ot.personalAsignado.nombre}</span>
+        )}
+        {ot.fechaEntrega && (
+          <span className="text-xs text-gray-400">
+            Entrega: {new Date(ot.fechaEntrega).toLocaleDateString("es-PE", { timeZone: "UTC" })}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Gráfico de dona ──────────────────────────────────────────────────────────
 function GraficoDona({ titulo, datos, colores, onClickSlice }) {
   const total = datos.reduce((s, d) => s + d.value, 0);
@@ -182,15 +218,21 @@ export default function Dashboard() {
   const [filtroEmpresa, setFiltroEmpresa] = useState("");
 
   useEffect(() => {
-    Promise.all([
-      fetchAuth("/ordenes-trabajo").then((r) => r.ok ? r.json() : []),
-      fetchAuth("/facturas").then((r) => r.ok ? r.json() : []),
-      fetchAuth("/cotizaciones").then((r) => r.ok ? r.json() : []),
-      fetchAuth("/ordenes-compra").then((r) => r.ok ? r.json() : []),
-    ]).then(([o, f, c, oc]) => {
-      setOts(o); setFacts(f); setCots(c); setOcs(oc);
-      setCargando(false);
-    });
+    const cargar = () => {
+      Promise.all([
+        fetchAuth("/ordenes-trabajo").then((r) => r.ok ? r.json() : []),
+        fetchAuth("/facturas").then((r) => r.ok ? r.json() : []),
+        fetchAuth("/cotizaciones").then((r) => r.ok ? r.json() : []),
+        fetchAuth("/ordenes-compra").then((r) => r.ok ? r.json() : []),
+      ]).then(([o, f, c, oc]) => {
+        setOts(o); setFacts(f); setCots(c); setOcs(oc);
+        setCargando(false);
+      });
+    };
+    cargar();
+    const onVisible = () => { if (!document.hidden) cargar(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
   // ── Años disponibles (union de todos los datos) ──────────────────────────
@@ -224,6 +266,13 @@ export default function Dashboard() {
     });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   };
+
+  const otsEnCurso = otsFiltradas
+    .filter((o) =>
+      (o.estado === "en progreso" || o.estado === "pendiente") &&
+      !o.ingresoEquipo?.anulada
+    )
+    .sort((a, b) => (a.estado === b.estado ? 0 : a.estado === "en progreso" ? -1 : 1));
 
   const factsVigentes = factsFiltradas.filter((f) => !f.anulada);
 
@@ -328,6 +377,48 @@ export default function Dashboard() {
           }
         />
       </div>
+
+      {/* OTs en curso — agrupadas por estado */}
+      {otsEnCurso.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-700">OTs en curso</h3>
+            <span className="text-xs text-gray-400">
+              {otsEnCurso.length} orden{otsEnCurso.length !== 1 ? "es" : ""}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
+                En progreso ({otsEnCurso.filter((o) => o.estado === "en progreso").length})
+              </p>
+              {otsEnCurso.filter((o) => o.estado === "en progreso").map((ot) => (
+                <OtCard key={ot._id} ot={ot}
+                  onClick={() => navigate("/ordenes-trabajo", {
+                    state: { filtroEstado: ot.estado, filtroEmpresa: ot.empresa?._id || "" },
+                  })} />
+              ))}
+              {otsEnCurso.filter((o) => o.estado === "en progreso").length === 0 && (
+                <p className="text-xs text-gray-300">Sin OTs en progreso</p>
+              )}
+            </div>
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">
+                Pendiente ({otsEnCurso.filter((o) => o.estado === "pendiente").length})
+              </p>
+              {otsEnCurso.filter((o) => o.estado === "pendiente").map((ot) => (
+                <OtCard key={ot._id} ot={ot}
+                  onClick={() => navigate("/ordenes-trabajo", {
+                    state: { filtroEstado: ot.estado, filtroEmpresa: ot.empresa?._id || "" },
+                  })} />
+              ))}
+              {otsEnCurso.filter((o) => o.estado === "pendiente").length === 0 && (
+                <p className="text-xs text-gray-300">Sin OTs pendientes</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

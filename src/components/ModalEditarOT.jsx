@@ -30,21 +30,48 @@ export default function ModalEditarOT({ orden, onClose, onGuardada }) {
       ? new Date(orden.fechaEntrega).toISOString().split("T")[0]
       : "",
     personalAsignado: orden.personalAsignado?._id || "",
+    cotizacion: orden.cotizacion?._id || "",
   });
   const [usuarios, setUsuarios] = useState([]);
+  const [cotizaciones, setCotizaciones] = useState([]);
+  const [busquedaCot, setBusquedaCot] = useState(
+    orden.cotizacion?.codigo
+      ? `${orden.cotizacion.codigo}${orden.cotizacion.titulo ? ` — ${orden.cotizacion.titulo}` : ""}`
+      : ""
+  );
+  const [dropdownCot, setDropdownCot] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
-    fetchAuth("/personal/lista").then((r) => r.ok && r.json().then(setUsuarios));
+    Promise.all([
+      fetchAuth("/personal/lista").then((r) => r.ok && r.json()),
+      fetchAuth("/cotizaciones").then((r) => r.ok && r.json()),
+    ]).then(([personal, cots]) => {
+      if (personal) setUsuarios(personal);
+      if (cots) setCotizaciones(cots);
+    });
   }, []);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const cotsFiltradas = busquedaCot.trim() && !form.cotizacion
+    ? cotizaciones.filter((c) => {
+        const q = busquedaCot.toLowerCase();
+        return (
+          c.codigo?.toLowerCase().includes(q) ||
+          c.titulo?.toLowerCase().includes(q) ||
+          c.empresa?.razonSocial?.toLowerCase().includes(q) ||
+          c.empresa?.alias?.toLowerCase().includes(q)
+        );
+      }).slice(0, 8)
+    : [];
 
   const guardar = async () => {
     setGuardando(true);
     const body = { ...form };
     if (!body.personalAsignado) delete body.personalAsignado;
     if (!body.fechaEntrega) delete body.fechaEntrega;
+    if (!body.cotizacion) delete body.cotizacion;
 
     const res = await fetchAuth(`/ordenes-trabajo/${orden._id}`, {
       method: "PUT",
@@ -132,6 +159,58 @@ export default function ModalEditarOT({ orden, onClose, onGuardada }) {
                 <option key={u._id} value={u._id}>{u.nombre}</option>
               ))}
             </select>
+          </div>
+
+          {/* Buscador de cotización */}
+          <div className="relative">
+            <label className="text-xs text-gray-500 block mb-1">Cotización vinculada</label>
+            <div className="flex gap-2">
+              <input
+                value={busquedaCot}
+                onChange={(e) => {
+                  setBusquedaCot(e.target.value);
+                  setDropdownCot(true);
+                  setForm((f) => ({ ...f, cotizacion: "" }));
+                }}
+                onFocus={() => setDropdownCot(true)}
+                onBlur={() => setTimeout(() => setDropdownCot(false), 150)}
+                placeholder="Buscar por código, empresa o título…"
+                className={`flex-1 ${INP}`}
+              />
+              {form.cotizacion && (
+                <button
+                  type="button"
+                  onClick={() => { setForm((f) => ({ ...f, cotizacion: "" })); setBusquedaCot(""); }}
+                  className="text-xs text-gray-400 hover:text-red-500 px-2 transition"
+                  title="Desvincular cotización"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            {dropdownCot && cotsFiltradas.length > 0 && (
+              <ul className="absolute z-10 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto text-sm">
+                {cotsFiltradas.map((c) => (
+                  <li
+                    key={c._id}
+                    className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                    onMouseDown={() => {
+                      setForm((f) => ({ ...f, cotizacion: c._id }));
+                      setBusquedaCot(`${c.codigo}${c.titulo ? ` — ${c.titulo}` : ""}`);
+                      setDropdownCot(false);
+                    }}
+                  >
+                    <span className="font-mono text-xs text-gray-500 mr-2">{c.codigo}</span>
+                    <span>{c.titulo || "Sin título"}</span>
+                    {c.empresa && (
+                      <span className="text-gray-400 ml-1 text-xs">
+                        · {c.empresa.alias || c.empresa.razonSocial}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
 
