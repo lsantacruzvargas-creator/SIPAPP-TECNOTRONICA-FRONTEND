@@ -143,6 +143,7 @@ export default function Cotizaciones() {
   };
 
   const guardar = async () => {
+    if (cargando) return;
     setCargando(true);
     setError("");
     try {
@@ -274,7 +275,7 @@ export default function Cotizaciones() {
                   >
                     <option value="">— {cargandoOTs ? "Cargando…" : "Seleccionar OT para agregar"} —</option>
                     {otsLista
-                      .filter((o) => !otsSel.some((s) => s._id === o._id))
+                      .filter((o) => !otsSel.some((s) => s._id === o._id) && !o.ingresoEquipo?.garantia)
                       .map((o) => (
                         <option key={o._id} value={o._id}>
                           {o.codigo} — {o.ingresoEquipo?.tipoEquipo || o.titulo}
@@ -751,7 +752,7 @@ export default function Cotizaciones() {
                 className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition">
                 Cancelar
               </button>
-              <button onClick={async () => { setConfirmando(false); await guardar(); }}
+              <button onClick={async () => { setCargando(true); setConfirmando(false); await guardar(); }}
                 disabled={cargando}
                 className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700 transition disabled:opacity-50">
                 {cargando ? "Guardando..." : "Confirmar y guardar"}

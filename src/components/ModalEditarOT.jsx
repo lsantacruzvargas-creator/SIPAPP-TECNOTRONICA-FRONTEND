@@ -162,6 +162,14 @@ export default function ModalEditarOT({ orden, onClose, onGuardada }) {
           </div>
 
           {/* Buscador de cotización */}
+          {orden.ingresoEquipo?.garantia ? (
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Cotización vinculada</label>
+              <span className="inline-block px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                En garantía — sin cotización
+              </span>
+            </div>
+          ) : (
           <div className="relative">
             <label className="text-xs text-gray-500 block mb-1">Cotización vinculada</label>
             <div className="flex gap-2">
@@ -212,6 +220,7 @@ export default function ModalEditarOT({ orden, onClose, onGuardada }) {
               </ul>
             )}
           </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
