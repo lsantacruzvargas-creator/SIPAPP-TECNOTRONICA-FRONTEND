@@ -66,90 +66,48 @@ const ESTADOS_COT = [
   { valor: "sin ejecutar",         label: "Sin ejecutar",         cls: "bg-red-50 text-red-600" },
 ];
 
-function PanelIngresoEquipo({ ie }) {
-  if (!ie) return null;
+function PanelOT({ ot, marcado, onToggle }) {
+  const ie = ot.ingresoEquipo;
+  const info = ie
+    ? [ie.tipoEquipo, [ie.marca, ie.modelo].filter(Boolean).join("/"), ie.planta]
+        .filter(Boolean).join(" · ")
+    : ot.titulo || "";
   return (
-    <div className="border border-blue-100 bg-blue-50/40 rounded-xl p-4 space-y-3 mb-5">
-      <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
-        Ingreso de equipo · <span className="font-mono">{ie.codigo}</span>
-      </p>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Tipo de equipo</label>
-          <input value={ie.tipoEquipo || "—"} disabled className={`w-full ${INP_RO}`} />
-        </div>
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Marca / Modelo</label>
-          <input value={[ie.marca, ie.modelo].filter(Boolean).join(" / ") || "—"} disabled className={`w-full ${INP_RO}`} />
-        </div>
-        {ie.planta && (
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Planta</label>
-            <input value={ie.planta} disabled className={`w-full ${INP_RO}`} />
-          </div>
-        )}
-        {ie.linea && (
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Línea</label>
-            <input value={ie.linea} disabled className={`w-full ${INP_RO}`} />
-          </div>
-        )}
-        {ie.voltaje && (
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Voltaje</label>
-            <input value={ie.voltaje} disabled className={`w-full ${INP_RO}`} />
-          </div>
-        )}
-        {ie.potencia && (
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Potencia</label>
-            <input value={ie.potencia} disabled className={`w-full ${INP_RO}`} />
-          </div>
-        )}
-        {ie.fechaIngreso && (
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Fecha de ingreso</label>
-            <input value={new Date(ie.fechaIngreso).toLocaleDateString("es-PE", { timeZone: "UTC" })} disabled className={`w-full ${INP_RO}`} />
-          </div>
-        )}
-        {ie.caracteristicasElectricas && (
-          <div className="col-span-2">
-            <label className="text-xs text-gray-400 block mb-1">Características eléctricas</label>
-            <input value={ie.caracteristicasElectricas} disabled className={`w-full ${INP_RO}`} />
-          </div>
-        )}
-        {ie.accesorios && (
-          <div className="col-span-2">
-            <label className="text-xs text-gray-400 block mb-1">Accesorios</label>
-            <input value={ie.accesorios} disabled className={`w-full ${INP_RO}`} />
-          </div>
-        )}
-        {ie.descripcionProblema && (
-          <div className="col-span-2">
-            <label className="text-xs text-gray-400 block mb-1">Descripción del problema</label>
-            <textarea value={ie.descripcionProblema} disabled rows={2} className={`w-full ${INP_RO} resize-none`} />
-          </div>
-        )}
-        {ie.numeroGuiaEmision && (
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">N° guía de remisión</label>
-            <input value={ie.numeroGuiaEmision} disabled className={`w-full ${INP_RO} font-mono`} />
-          </div>
-        )}
-        {ie.garantia && (
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Garantía</label>
-            <span className="inline-block px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700">
-              En garantía
-            </span>
-          </div>
-        )}
-      </div>
+    <div className={`border rounded-lg px-4 py-2 flex items-center gap-3 transition ${
+      marcado ? "border-red-200 bg-red-50/30" : "border-blue-100 bg-blue-50/40"
+    }`}>
+      <span className={`text-xs font-semibold shrink-0 ${marcado ? "text-red-400 line-through" : "text-blue-600"}`}>
+        OT · {ot.codigo}
+      </span>
+      {ie && (
+        <span className="text-xs font-mono text-gray-400 shrink-0">IE · {ie.codigo}</span>
+      )}
+      {info && (
+        <span className="text-xs text-gray-600 truncate">{info}</span>
+      )}
+      {ie?.garantia && !onToggle && (
+        <span className="text-xs font-medium bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full shrink-0 ml-auto">
+          Garantía
+        </span>
+      )}
+      {onToggle && (
+        <button
+          type="button"
+          onClick={() => onToggle(ot._id)}
+          className={`text-xs border px-2.5 py-1 rounded-lg transition shrink-0 ml-auto ${
+            marcado
+              ? "border-gray-300 text-gray-500 hover:bg-gray-100"
+              : "border-red-200 text-red-500 hover:text-red-700 hover:bg-red-50"
+          }`}
+        >
+          {marcado ? "Cancelar" : "Desvincular"}
+        </button>
+      )}
     </div>
   );
 }
 
-function VistaDetalle({ cot, ie }) {
+function VistaDetalle({ cot, ots }) {
   const esPepsico = Boolean(
     cot.empresa?.razonSocial?.toLowerCase().includes("pepsico") ||
     cot.empresa?.alias?.toLowerCase().includes("pepsico")
@@ -157,7 +115,11 @@ function VistaDetalle({ cot, ie }) {
 
   return (
     <div>
-      <PanelIngresoEquipo ie={ie} />
+      {ots?.length > 0 && (
+        <div className="mb-5 space-y-1.5">
+          {ots.map((ot) => <PanelOT key={ot._id} ot={ot} />)}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-4 mb-5">
         <div>
           <p className="text-xs text-gray-400 mb-0.5">Empresa</p>
@@ -351,6 +313,20 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
   const [ots, setOts] = useState([]);
   const [otVinculadaId, setOtVinculadaId] = useState("");
   const [otOriginalId, setOtOriginalId] = useState("");
+  const [otsVinculadas, setOtsVinculadas] = useState([]);
+  const [aDesvincular, setADesvincular] = useState(new Set());
+
+  const cargarOts = (otsData) => {
+    if (!otsData) return;
+    const vinculadas = otsData.filter(
+      (o) => o.cotizacion?._id === cot._id || o.cotizacion === cot._id
+    );
+    setOtsVinculadas(vinculadas);
+    const ot = vinculadas.find((o) => o.ingresoEquipo);
+    setIe(ot?.ingresoEquipo || null);
+    setOtOriginalId(ot?._id || "");
+    setOtVinculadaId(ot?._id || "");
+  };
 
   useEffect(() => {
     const empresaId = cot.empresa?._id || cot.empresa;
@@ -360,14 +336,17 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
       });
     }
 
-    fetchAuth("/ordenes-trabajo").then((r) => r.ok && r.json()).then((otsData) => {
-      if (!otsData) return;
-      const ot = otsData.find((o) => o.cotizacion?._id === cot._id && o.ingresoEquipo);
-      setIe(ot?.ingresoEquipo || null);
-      setOtOriginalId(ot?._id || "");
-      setOtVinculadaId(ot?._id || "");
-    });
+    fetchAuth("/ordenes-trabajo").then((r) => r.ok && r.json()).then(cargarOts);
   }, [cot._id]);
+
+  const toggleDesvincular = (otId) => {
+    setADesvincular((prev) => {
+      const next = new Set(prev);
+      if (next.has(otId)) next.delete(otId);
+      else next.add(otId);
+      return next;
+    });
+  };
 
   const entrarEdicion = () => {
     Promise.all([
@@ -392,12 +371,14 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
       garantia:  cot.garantia || "",
     });
     setItems((cot.items || []).map(itemDesdeDb));
+    setADesvincular(new Set());
     setEditando(true);
   };
 
   const cancelarEdicion = () => {
     setEditando(false);
     setConfirmando(false);
+    setADesvincular(new Set());
   };
 
   const handleForm = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -524,6 +505,25 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
         setOtOriginalId("");
       }
 
+      if (aDesvincular.size > 0) {
+        await Promise.all(
+          [...aDesvincular].map((otId) =>
+            fetchAuth(`/ordenes-trabajo/${otId}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ cotizacion: "" }),
+            })
+          )
+        );
+        const nuevas = otsVinculadas.filter((o) => !aDesvincular.has(o._id));
+        setOtsVinculadas(nuevas);
+        const otPrincipal = nuevas.find((o) => o.ingresoEquipo);
+        setIe(otPrincipal?.ingresoEquipo || null);
+        setOtOriginalId(otPrincipal?._id || "");
+        setOtVinculadaId(otPrincipal?._id || "");
+        setADesvincular(new Set());
+      }
+
       setCot(actualizada);
       setEditando(false);
       onSaved(actualizada);
@@ -634,10 +634,21 @@ export default function ModalCotizacion({ cotizacion: inicial, onClose, onSaved 
         {/* Body */}
         <div className="overflow-y-auto flex-1 p-6">
           {!editando ? (
-            <VistaDetalle cot={cot} ie={ie} />
+            <VistaDetalle cot={cot} ots={otsVinculadas} />
           ) : (
             <form onSubmit={(e) => e.preventDefault()}>
-              <PanelIngresoEquipo ie={ie} />
+              {otsVinculadas.length > 0 && (
+                <div className="mb-5 space-y-1.5">
+                  {otsVinculadas.map((ot) => (
+                    <PanelOT
+                      key={ot._id}
+                      ot={ot}
+                      marcado={aDesvincular.has(ot._id)}
+                      onToggle={toggleDesvincular}
+                    />
+                  ))}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4 mb-5">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Empresa</label>
