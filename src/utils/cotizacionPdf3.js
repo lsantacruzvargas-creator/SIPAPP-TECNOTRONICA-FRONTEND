@@ -11,14 +11,14 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
   const margin = 14;
 
   // ─── LOGO EN COLOR ───────────────────────────────────────────────────────
-  doc.addImage(logo, "JPG", margin, 8, 180, 25);
+  doc.addImage(logo, "JPG", margin, 8, 180, 30);
   //   y += 15;
   // doc.setFontSize(10);
   // doc.setFont("arial", "bold");
   // doc.text(`Ingeniería electrónica Industrial www.tecnotronica.com.pe`, margin + 80, y, { align: "center" });
 
   // ─── DATOS EMISOR (centro bajo logo) ─────────────────────────────────────
-  y += 18;
+  y += 22;
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.text("Razón Social:", margin, y);

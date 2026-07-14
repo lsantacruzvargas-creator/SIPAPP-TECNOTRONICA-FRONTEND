@@ -11,7 +11,7 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
   const margin = 12;
 
   // ─── LOGO EN COLOR ───────────────────────────────────────────────────────
-  doc.addImage(logo, "JPG", margin, 8, 180, 25);
+  doc.addImage(logo, "JPG", margin, 8, 180, 30);
   //   y += 15;
   // doc.setFontSize(10);
   // doc.setFont("arial", "bold");
@@ -19,7 +19,7 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
 
 
   // ─── FECHA ───────────────────────────────────────────────────────
-  y += 18;
+  y += 22;
   doc.setFontSize(9);
   const _f = new Date(cotizacion.fecha);
   const fechaStr = `${_f.getUTCDate()} de ${_f.toLocaleDateString("es-PE", { month: "long", timeZone: "UTC" })} del ${_f.getUTCFullYear()}`;

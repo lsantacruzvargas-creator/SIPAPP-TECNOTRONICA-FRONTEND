@@ -113,6 +113,7 @@ export default function ListaCotizaciones() {
       (!filtros.tipo || c.tipo === filtros.tipo) &&
       (!filtros.oc  || (filtros.oc === "con" ? ocPorCot.has(c._id) : !ocPorCot.has(c._id))) &&
       (!q ||
+        c.codigo?.toLowerCase().includes(q) ||
         c.titulo?.toLowerCase().includes(q) ||
         c.empresa?.razonSocial?.toLowerCase().includes(q) ||
         c.empresa?.ruc?.includes(q))
@@ -217,7 +218,7 @@ export default function ListaCotizaciones() {
           name="busqueda"
           value={filtros.busqueda}
           onChange={handleFiltro}
-          placeholder="Buscar por empresa, RUC o título…"
+          placeholder="Buscar por código, empresa, RUC o título…"
           className={`${SELECT} flex-1 min-w-52`}
         />
 
