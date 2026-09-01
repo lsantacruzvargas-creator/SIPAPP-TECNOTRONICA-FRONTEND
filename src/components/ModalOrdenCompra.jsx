@@ -23,7 +23,7 @@ export default function ModalOrdenCompra({ cotizacion, onClose, onCreada }) {
       body: JSON.stringify({
         cotizacion:    cotizacion._id,
         empresa:       emp?._id,
-        titulo:        cotizacion.titulo,
+        titulo:        cotizacion.referencia || cotizacion.titulo,
         monto:         Number(monto/1.18).toFixed(2), // Guardamos el monto sin IGV
         numeroOrden: numeroOrden || undefined,
       }),
@@ -62,7 +62,7 @@ export default function ModalOrdenCompra({ cotizacion, onClose, onCreada }) {
             </div>
             <div>
               <label className="text-xs text-gray-500 block mb-1">Título</label>
-              <input value={cotizacion.titulo} disabled className={INP_RO} />
+              <input value={cotizacion.referencia || cotizacion.titulo} disabled className={INP_RO} />
             </div>
             {emp && (
               <div className="grid grid-cols-2 gap-3">

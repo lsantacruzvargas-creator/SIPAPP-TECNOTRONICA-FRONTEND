@@ -24,6 +24,7 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) return setError(data.mensaje || "Error al iniciar sesión");
       localStorage.setItem("token", data.token);
+      localStorage.setItem("tokenArchivos", data.tokenArchivos);
       localStorage.setItem("usuario", JSON.stringify(data.usuario));
       navigate("/dashboard");
     } catch {
