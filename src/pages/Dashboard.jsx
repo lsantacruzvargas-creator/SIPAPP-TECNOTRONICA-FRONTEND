@@ -50,32 +50,53 @@ function KpiCard({ label, value, sub, color, onClick }) {
   );
 }
 
-// ── Tarjeta contraste OC vs Cotizaciones ─────────────────────────────────────
-function KpiContrasteCard({ totalCots, totalOCs }) {
-  const navigate = useNavigate();
-  const sinOC = totalCots - totalOCs;
-  const pct = totalCots > 0 ? Math.round((totalOCs / totalCots) * 100) : 0;
+const fmt = (n) => `S/ ${Number(n).toLocaleString("es-PE", { minimumFractionDigits: 2 })}`;
+
+// ── Tarjeta contraste: Cotizaciones enviadas → aceptadas ─────────────────────
+// "Enviadas" = todas las no anuladas (ojo: acá el campo se llama `anulada`,
+// no `anulado` como en los otros proyectos hermanos). "Aceptadas" = de esas,
+// las que ya generaron al menos una Orden de Trabajo. `otsTodas` va SIN el
+// filtro de fecha/empresa del Dashboard — el vínculo se chequea contra el
+// universo completo de OT (la OT de una cotización de julio puede haberse
+// creado en agosto), solo `cots` (el "totalOrigen") respeta el filtro.
+function KpiContrasteCard({ cots, otsTodas }) {
+  const montoCot = (c) => Number(c.total) || 0;
+
+  const cotsEnviadas = cots.filter((c) => !c.anulada);
+  const cotizacionesConOT = new Set(otsTodas.map((o) => o.cotizacion?._id).filter(Boolean));
+  const cotsAceptadas = cotsEnviadas.filter((c) => cotizacionesConOT.has(c._id));
+  const cotsSinAceptar = cotsEnviadas.length - cotsAceptadas.length;
+  const montoEnviadas = cotsEnviadas.reduce((s, c) => s + montoCot(c), 0);
+  const montoAceptadas = cotsAceptadas.reduce((s, c) => s + montoCot(c), 0);
+  const montoPendiente = Math.max(montoEnviadas - montoAceptadas, 0);
+  const pct = cotsEnviadas.length > 0 ? Math.round((cotsAceptadas.length / cotsEnviadas.length) * 100) : 0;
+  const pctMonto = montoEnviadas > 0 ? Math.round((montoAceptadas / montoEnviadas) * 100) : 0;
+
   return (
     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5 flex flex-col gap-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-        Conversión Cotización → OC
+        Conversión de cotizaciones
       </p>
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
-          <p className="text-xs text-gray-400 mb-0.5">Cotizaciones</p>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-800">{totalCots}</p>
+          <p className="text-xs text-gray-400 mb-0.5">Cotizaciones enviadas</p>
+          <p className="text-2xl sm:text-3xl font-bold text-gray-800">{cotsEnviadas.length}</p>
+          <p className="text-[18px] text-gray-400 mt-0.5 whitespace-nowrap">{fmt(montoEnviadas)}</p>
         </div>
         <div className="text-2xl font-light text-gray-300 pb-1">→</div>
         <div className="min-w-0">
-          <p className="text-xs text-gray-400 mb-0.5">Órdenes de Compra</p>
-          <p className="text-2xl sm:text-3xl font-bold text-indigo-700">{totalOCs}</p>
+          <p className="text-xs text-gray-400 mb-0.5">Cotizaciones aceptadas</p>
+          <p className="text-2xl sm:text-3xl font-bold text-indigo-700">{cotsAceptadas.length}</p>
+          <p className="text-[18px] text-gray-500 mt-0.5 whitespace-nowrap">
+            {fmt(montoAceptadas)} <span className="text-gray-400">({pctMonto}%)</span>
+          </p>
         </div>
-        <div
-          className="min-w-0 cursor-pointer hover:opacity-70 transition"
-          onClick={() => navigate("/cotizaciones", { state: { filtroOC: "sin" } })}
-        >
-          <p className="text-xs text-gray-400 mb-0.5">Cotizaciones sin OC</p>
-          <p className="text-2xl sm:text-3xl font-bold text-red-500">{sinOC}</p>
+        <div className="min-w-0">
+          <p className="text-xs text-gray-400 mb-0.5">Cotizaciones enviadas sin aceptar</p>
+          <p className="text-2xl sm:text-3xl font-bold text-red-500">{cotsSinAceptar}</p>
+          <p className="text-[18px] text-red-500 mt-0.5 whitespace-nowrap">
+            {fmt(montoPendiente)} ({100 - pctMonto}%)
+          </p>
         </div>
       </div>
       <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
@@ -85,7 +106,7 @@ function KpiContrasteCard({ totalCots, totalOCs }) {
         />
       </div>
       <p className="text-xs text-gray-400">
-        {totalOCs} de {totalCots} cotizaciones tienen orden de compra emitida
+        {cotsAceptadas.length} de {cotsEnviadas.length} cotizaciones enviadas tienen cotizaciones aceptadas vinculada
       </p>
     </div>
   );
@@ -289,8 +310,6 @@ export default function Dashboard() {
   const totalPagado    = factsVigentes.reduce((s, f) => s + (Number(f.montoPagado) || 0), 0);
   const porCobrar      = totalAPagarSum - totalPagado;
 
-  const fmt = (n) => `S/ ${Number(n).toLocaleString("es-PE", { minimumFractionDigits: 2 })}`;
-
   if (cargando) {
     return <div className="p-8 text-sm text-gray-400">Cargando dashboard…</div>;
   }
@@ -356,7 +375,7 @@ export default function Dashboard() {
       </div>
 
       {/* Contraste OC vs Cotizaciones */}
-      <KpiContrasteCard totalCots={cotsFiltradas.length} totalOCs={ocsFiltradas.length} />
+      <KpiContrasteCard cots={cotsFiltradas} otsTodas={ots} />
 
       {/* Gráficos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
