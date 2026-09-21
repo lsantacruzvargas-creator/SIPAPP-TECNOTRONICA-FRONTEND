@@ -19,7 +19,7 @@ const hoy = () => new Date().toISOString().split("T")[0];
 export default function Cotizaciones() {
   const [empresas, setEmpresas] = useState([]);
   const [tipo, setTipo] = useState("venta");
-  const [form, setForm] = useState({ empresa: "", condicionPago: "", fecha: hoy(), atencion: "", solped: "", referencia: "", modulo: "", tarjeta: "", equipo: "", garantia: "", plazoEntrega: "", validezOferta: "30 días calendario" });
+  const [form, setForm] = useState({ empresa: "", condicionPago: "", fecha: hoy(), atencion: "", solped: "", referencia: "", modulo: "", tarjeta: "", equipo: "", garantia: "", plazoEntrega: "", validezOferta: "30 días calendario", moneda: "PEN" });
   const [items, setItems] = useState([itemVacioVenta()]);
   const [guardado, setGuardado] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
@@ -197,7 +197,7 @@ export default function Cotizaciones() {
 
   const nueva = () => {
     setTipo("venta");
-    setForm({ empresa: "", condicionPago: "", fecha: hoy(), atencion: "", solped: "", referencia: "", modulo: "", tarjeta: "", equipo: "", garantia: "", plazoEntrega: "", validezOferta: "30 días calendario" });
+    setForm({ empresa: "", condicionPago: "", fecha: hoy(), atencion: "", solped: "", referencia: "", modulo: "", tarjeta: "", equipo: "", garantia: "", plazoEntrega: "", validezOferta: "30 días calendario", moneda: "PEN" });
     setItems([itemVacioVenta()]);
     setGuardado(null);
     setError("");
@@ -377,6 +377,14 @@ export default function Cotizaciones() {
               <label className="block text-xs font-medium text-gray-500 mb-1">Fecha</label>
               <input type="date" name="fecha" value={form.fecha} onChange={handleChange}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Moneda</label>
+              <select name="moneda" value={form.moneda} onChange={handleChange} disabled={ro}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500">
+                <option value="PEN">Soles (PEN)</option>
+                <option value="USD">Dólares (USD)</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Atención</label>

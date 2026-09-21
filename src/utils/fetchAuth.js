@@ -1,6 +1,8 @@
 const API = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const BASE = API.replace("/api", "");
 
+export const getUsuario = () => JSON.parse(localStorage.getItem("usuario") || "null");
+
 export const imgUrl = (ruta) => {
   const tokenArchivos = localStorage.getItem("tokenArchivos");
   return `${BASE}${ruta}${tokenArchivos ? `?token=${tokenArchivos}` : ""}`;

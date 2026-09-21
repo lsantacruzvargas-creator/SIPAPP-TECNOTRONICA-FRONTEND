@@ -1,7 +1,23 @@
 import { useState, useEffect } from "react";
 import { fetchAuth } from "../utils/fetchAuth";
 
-const FORM_VACIO = { razonSocial: "", ruc: "", direccion: "", telefono: "", correo: "", alias: "", personaContacto: { nombre: "", telefono: "" }, plantas: [] };
+const FORM_VACIO = {
+  razonSocial: "", ruc: "", direccion: "", alias: "",
+  requiereHes: false, requiereActaConformidad: false,
+  plantas: [],
+};
+
+const plantaVacia = () => ({ nombre: "", ubigeo: "", direccion: "", contactos: [] });
+const contactoVacio = () => ({ nombre: "", telefono: "", correo: "" });
+
+// Primer contacto disponible entre todas las plantas — solo para la vista
+// resumida de la tabla, la edición real es por planta.
+const primerContacto = (empresa) => {
+  for (const p of empresa.plantas || []) {
+    if (p.contactos?.length) return p.contactos[0];
+  }
+  return null;
+};
 
 export default function Empresas() {
   const [empresas, setEmpresas] = useState([]);
@@ -11,7 +27,6 @@ export default function Empresas() {
   const [form, setForm] = useState(FORM_VACIO);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
-  const [plantaInput, setPlantaInput] = useState("");
   const [buscandoRuc, setBuscandoRuc] = useState(false);
 
   useEffect(() => { cargar(); }, []);
@@ -26,10 +41,10 @@ export default function Empresas() {
     return e.razonSocial.toLowerCase().includes(q) || e.ruc.includes(q);
   });
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-
-  const handleContacto = (e) =>
-    setForm({ ...form, personaContacto: { ...form.personaContacto, [e.target.name]: e.target.value } });
+  const handleChange = (e) => {
+    const { name, type, checked, value } = e.target;
+    setForm({ ...form, [name]: type === "checkbox" ? checked : value });
+  };
 
   const buscarRuc = async (ruc) => {
     if (ruc.length !== 11) return;
@@ -51,20 +66,45 @@ export default function Empresas() {
     }
   };
 
-  const agregarPlanta = () => {
-    const nombre = plantaInput.trim();
-    if (!nombre) return;
-    setForm((f) => ({ ...f, plantas: [...f.plantas, { nombre }] }));
-    setPlantaInput("");
-  };
+  const agregarPlanta = () =>
+    setForm((f) => ({ ...f, plantas: [...f.plantas, plantaVacia()] }));
 
   const quitarPlanta = (idx) =>
     setForm((f) => ({ ...f, plantas: f.plantas.filter((_, i) => i !== idx) }));
 
+  const actualizarPlanta = (idx, campo, valor) =>
+    setForm((f) => ({
+      ...f,
+      plantas: f.plantas.map((p, i) => (i === idx ? { ...p, [campo]: valor } : p)),
+    }));
+
+  const agregarContacto = (idxPlanta) =>
+    setForm((f) => ({
+      ...f,
+      plantas: f.plantas.map((p, i) => (i === idxPlanta ? { ...p, contactos: [...p.contactos, contactoVacio()] } : p)),
+    }));
+
+  const quitarContacto = (idxPlanta, idxContacto) =>
+    setForm((f) => ({
+      ...f,
+      plantas: f.plantas.map((p, i) =>
+        i === idxPlanta ? { ...p, contactos: p.contactos.filter((_, j) => j !== idxContacto) } : p
+      ),
+    }));
+
+  const actualizarContacto = (idxPlanta, idxContacto, campo, valor) =>
+    setForm((f) => ({
+      ...f,
+      plantas: f.plantas.map((p, i) =>
+        i === idxPlanta
+          ? { ...p, contactos: p.contactos.map((c, j) => (j === idxContacto ? { ...c, [campo]: valor } : c)) }
+          : p
+      ),
+    }));
+
   const abrirNuevo = () => {
     setEditando(null);
     setForm(FORM_VACIO);
-    setPlantaInput("");
     setError("");
     setModal(true);
   };
@@ -75,22 +115,26 @@ export default function Empresas() {
       razonSocial: empresa.razonSocial,
       ruc: empresa.ruc,
       direccion: empresa.direccion || "",
-      telefono: empresa.telefono || "",
-      correo: empresa.correo || "",
       alias: empresa.alias || "",
-      personaContacto: {
-        nombre:   empresa.personaContacto?.nombre   || "",
-        telefono: empresa.personaContacto?.telefono || "",
-      },
-      plantas: empresa.plantas || [],
+      requiereHes: empresa.requiereHes || false,
+      requiereActaConformidad: empresa.requiereActaConformidad || false,
+      plantas: (empresa.plantas || []).map((p) => ({
+        nombre: p.nombre || "",
+        ubigeo: p.ubigeo || "",
+        direccion: p.direccion || "",
+        contactos: p.contactos || [],
+      })),
     });
-    setPlantaInput("");
     setError("");
     setModal(true);
   };
 
   const guardar = async (e) => {
     e.preventDefault();
+    if (!form.razonSocial.trim() || !form.ruc.trim()) {
+      setError("Razón social y RUC son obligatorios.");
+      return;
+    }
     setCargando(true);
     setError("");
     try {
@@ -139,8 +183,8 @@ export default function Empresas() {
               <th className="px-4 py-3 text-left">Alias</th>
               <th className="px-4 py-3 text-left">Razón social</th>
               <th className="px-4 py-3 text-left">RUC</th>
-              <th className="px-4 py-3 text-left">Teléfono</th>
-              <th className="px-4 py-3 text-left">Correo</th>
+              <th className="px-4 py-3 text-left">Contacto</th>
+              <th className="px-4 py-3 text-center">HES / Acta</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -152,14 +196,21 @@ export default function Empresas() {
                 </td>
               </tr>
             ) : (
-              empresasFiltradas.map((e) => (
+              empresasFiltradas.map((e) => {
+                const contacto = primerContacto(e);
+                return (
                 <tr key={e._id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-gray-400 text-xs">{e.codigo}</td>
                   <td className="px-4 py-3 font-medium">{e.alias}</td>
                   <td className="px-4 py-3">{e.razonSocial}</td>
                   <td className="px-4 py-3">{e.ruc}</td>
-                  <td className="px-4 py-3">{e.telefono}</td>
-                  <td className="px-4 py-3">{e.correo}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {contacto ? `${contacto.nombre}${contacto.telefono ? ` · ${contacto.telefono}` : ""}` : <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {e.requiereHes && <span className="inline-block px-1.5 py-0.5 mr-1 rounded bg-amber-50 text-amber-700 text-[10px] font-medium">HES</span>}
+                    {e.requiereActaConformidad && <span className="inline-block px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 text-[10px] font-medium">Acta</span>}
+                  </td>
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => abrirEditar(e)}
@@ -169,7 +220,8 @@ export default function Empresas() {
                     </button>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
@@ -178,7 +230,7 @@ export default function Empresas() {
 
       {modal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="font-semibold text-gray-800 mb-4">
               {editando ? "Editar empresa" : "Nueva empresa"}
             </h3>
@@ -239,82 +291,110 @@ export default function Empresas() {
                   className="w-full border border-gray-200 bg-gray-100 text-gray-500 rounded-lg px-3 py-2 text-sm cursor-not-allowed"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
-                <input
-                  name="telefono"
-                  value={form.telefono}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Correo de contacto</label>
-                <input
-                  name="correo"
-                  type="email"
-                  value={form.correo}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                />
-              </div>
-              {/* Persona de contacto */}
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Persona de contacto</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    name="nombre"
-                    value={form.personaContacto.nombre}
-                    onChange={handleContacto}
-                    placeholder="Nombre"
-                    required
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  />
-                  <input
-                    name="telefono"
-                    value={form.personaContacto.telefono}
-                    onChange={handleContacto}
-                    placeholder="Teléfono"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  />
-                </div>
+              {/* Requisitos de facturación */}
+              <div className="col-span-2 flex gap-6 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2.5">
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                  <input type="checkbox" name="requiereHes" checked={form.requiereHes} onChange={handleChange} className="accent-gray-800 w-4 h-4" />
+                  Exige HES antes de facturar
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                  <input type="checkbox" name="requiereActaConformidad" checked={form.requiereActaConformidad} onChange={handleChange} className="accent-gray-800 w-4 h-4" />
+                  Exige Acta de Conformidad
+                </label>
               </div>
 
-              {/* Plantas */}
+              {/* Plantas + contactos */}
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Plantas</label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    value={plantaInput}
-                    onChange={(e) => setPlantaInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); agregarPlanta(); } }}
-                    placeholder="Nombre de la planta…"
-                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  />
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-medium text-gray-600">Plantas</label>
                   <button
                     type="button"
                     onClick={agregarPlanta}
-                    className="bg-gray-900 text-white px-3 py-2 rounded-lg text-sm hover:bg-gray-700 transition"
+                    className="text-xs text-gray-500 hover:text-gray-800 transition"
                   >
-                    + Agregar
+                    + Agregar planta
                   </button>
                 </div>
-                {form.plantas.length > 0 && (
-                  <ul className="space-y-1">
-                    {form.plantas.map((p, idx) => (
-                      <li key={idx} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-lg px-3 py-1.5 text-sm">
-                        <span className="text-gray-700">{p.nombre}</span>
+                {form.plantas.length === 0 && (
+                  <p className="text-xs text-gray-300 text-center py-3 border border-dashed border-gray-100 rounded-lg">
+                    Sin plantas registradas
+                  </p>
+                )}
+                <div className="space-y-3">
+                  {form.plantas.map((planta, idxPlanta) => (
+                    <div key={idxPlanta} className="border border-gray-100 rounded-lg p-3 bg-gray-50/50 space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          value={planta.nombre}
+                          onChange={(e) => actualizarPlanta(idxPlanta, "nombre", e.target.value)}
+                          placeholder="Nombre de la planta"
+                          className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                        />
                         <button
                           type="button"
-                          onClick={() => quitarPlanta(idx)}
-                          className="text-gray-400 hover:text-red-500 transition text-base leading-none ml-2"
+                          onClick={() => quitarPlanta(idxPlanta)}
+                          className="text-gray-400 hover:text-red-500 transition text-base leading-none px-1"
                         >
                           ✕
                         </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          value={planta.direccion}
+                          onChange={(e) => actualizarPlanta(idxPlanta, "direccion", e.target.value)}
+                          placeholder="Dirección de la planta"
+                          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                        />
+                        <input
+                          value={planta.ubigeo}
+                          onChange={(e) => actualizarPlanta(idxPlanta, "ubigeo", e.target.value)}
+                          placeholder="Ubigeo (6 dígitos)"
+                          maxLength={6}
+                          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                        />
+                      </div>
+
+                      <div className="pl-2 space-y-1.5">
+                        {planta.contactos.map((contacto, idxContacto) => (
+                          <div key={idxContacto} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 items-center">
+                            <input
+                              value={contacto.nombre}
+                              onChange={(e) => actualizarContacto(idxPlanta, idxContacto, "nombre", e.target.value)}
+                              placeholder="Nombre"
+                              className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-400"
+                            />
+                            <input
+                              value={contacto.telefono}
+                              onChange={(e) => actualizarContacto(idxPlanta, idxContacto, "telefono", e.target.value)}
+                              placeholder="Teléfono"
+                              className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-400"
+                            />
+                            <input
+                              value={contacto.correo}
+                              onChange={(e) => actualizarContacto(idxPlanta, idxContacto, "correo", e.target.value)}
+                              placeholder="Correo"
+                              className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-gray-400"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => quitarContacto(idxPlanta, idxContacto)}
+                              className="text-gray-300 hover:text-red-500 transition text-sm leading-none"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => agregarContacto(idxPlanta)}
+                          className="text-xs text-gray-400 hover:text-gray-700 transition"
+                        >
+                          + Agregar contacto
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="col-span-2 flex justify-end gap-3 pt-2">

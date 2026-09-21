@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { fetchAuth, uploadAuth, imgUrl } from "../utils/fetchAuth";
-import ModalEditarOrdenCompra from "../components/ModalEditarOrdenCompra";
+import DetalleDocumento from "../components/DetalleDocumento";
 
 const badgeOT = (estado) => {
   if (estado === "entregado")   return "bg-teal-50 text-teal-700";
@@ -251,12 +251,12 @@ export default function ListaOrdenesCompra() {
       </div>
 
       {ordenSeleccionada && (
-        <ModalEditarOrdenCompra
-          orden={ordenSeleccionada}
+        <DetalleDocumento
+          tipo="oc"
+          data={ordenSeleccionada}
           onClose={() => setOrdenSeleccionada(null)}
-          onGuardada={(actualizada) => {
+          onOCGuardada={(actualizada) => {
             setOrdenes((prev) => prev.map((o) => o._id === actualizada._id ? actualizada : o));
-            setOrdenSeleccionada(actualizada);
             cargar();
           }}
         />

@@ -2,7 +2,10 @@ import { useState, useEffect } from "react";
 import { fetchAuth } from "../utils/fetchAuth";
 import { INP } from "../utils/cotizacionItems";
 
-export default function ModalFactura({ cotizacion, onClose, onCreada, numeroOrdenCompra = "" }) {
+const cuotaVacia = (numero) => ({ numero, monto: "", fechaVencimiento: "" });
+const PORCENTAJE_RETENCION = { servicio: 12, venta: 3 };
+
+export default function ModalFactura({ cotizacion, ordenCompra, onClose, onCreada, numeroOrdenCompra = "" }) {
   const [form, setForm] = useState({
     numeroFactura:       "",
     fechaVencimiento:    "",
@@ -14,8 +17,17 @@ export default function ModalFactura({ cotizacion, onClose, onCreada, numeroOrde
   const [guardando, setGuardando] = useState(false);
   const [error, setError]         = useState("");
   const [exito, setExito]         = useState(null);
+  const [aCredito, setACredito]   = useState(false);
+  const [cuotas, setCuotas]       = useState([cuotaVacia(1)]);
+  const [preguntandoRetencion, setPreguntandoRetencion] = useState(false);
 
   const empresa = cotizacion.empresa;
+  const porcentaje = PORCENTAJE_RETENCION[cotizacion.tipo] ?? 3;
+
+  const agregarCuota = () => setCuotas((prev) => [...prev, cuotaVacia(prev.length + 1)]);
+  const quitarCuota = (i) => setCuotas((prev) => prev.filter((_, idx) => idx !== i).map((c, idx) => ({ ...c, numero: idx + 1 })));
+  const actualizarCuota = (i, campo, valor) =>
+    setCuotas((prev) => prev.map((c, idx) => idx === i ? { ...c, [campo]: valor } : c));
 
   useEffect(() => {
     fetchAuth("/ordenes-trabajo").then((r) => r.ok && r.json()).then((ots) => {
@@ -29,26 +41,30 @@ export default function ModalFactura({ cotizacion, onClose, onCreada, numeroOrde
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const guardar = async () => {
-    if (!form.numeroFactura.trim())     return setError("El N° de factura es obligatorio.");
-    if (!form.fechaVencimiento)         return setError("La fecha de vencimiento es obligatoria.");
-    if (!form.monto || Number(form.monto) <= 0) return setError("El monto es obligatorio.");
-    if (!form.numeroOrdenCompra.trim()) return setError("El N° de orden de compra es obligatorio.");
+  const validar = () => {
+    if (!form.numeroFactura.trim())     return setError("El N° de factura es obligatorio."), false;
+    if (!form.fechaVencimiento)         return setError("La fecha de vencimiento es obligatoria."), false;
+    if (!form.monto || Number(form.monto) <= 0) return setError("El monto es obligatorio."), false;
+    if (!form.numeroOrdenCompra.trim()) return setError("El N° de orden de compra es obligatorio."), false;
+    if (!empresa?._id) return setError("La cotización no tiene una empresa asociada; no se puede crear la factura."), false;
+    if (aCredito && cuotas.some((c) => !c.monto || Number(c.monto) <= 0 || !c.fechaVencimiento)) {
+      return setError("Cada cuota necesita un monto y una fecha de vencimiento."), false;
+    }
     setError("");
+    return true;
+  };
+
+  const guardar = async (gravadoRetencion) => {
+    setPreguntandoRetencion(false);
     setGuardando(true);
-    const monto = Number(form.monto) || 0;
-    const tipo  = cotizacion.tipo;
-    const detraccion  = tipo === "servicio" ? parseFloat((monto * 0.12).toFixed(2)) : 0;
-    const retencion   = tipo === "venta"    ? parseFloat((monto * 0.03).toFixed(2)) : 0;
-    const totalAPagar = parseFloat((tipo === "servicio" ? monto * 0.88 : monto * 0.97).toFixed(2));
 
     const payload = {
       cotizacion: cotizacion._id,
       empresa: empresa?._id,
+      ordenCompra: ordenCompra?._id,
       ...form,
-      detraccion,
-      retencion,
-      totalAPagar,
+      gravadoRetencion,
+      cuotas: aCredito ? cuotas.map((c) => ({ ...c, monto: Number(c.monto) })) : undefined,
     };
     if (!payload.fechaVencimiento) delete payload.fechaVencimiento;
 
@@ -148,6 +164,36 @@ export default function ModalFactura({ cotizacion, onClose, onCreada, numeroOrde
             </div>
           </div>
 
+          <div className="border border-gray-100 bg-gray-50 rounded-xl p-4 space-y-3">
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={aCredito} onChange={(e) => setACredito(e.target.checked)} />
+              Pago a crédito (varias cuotas)
+            </label>
+            {aCredito && (
+              <div className="space-y-2">
+                {cuotas.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 w-6">#{c.numero}</span>
+                    <input type="number" min="0" step="0.01" placeholder="Monto"
+                      value={c.monto} onChange={(e) => actualizarCuota(i, "monto", e.target.value)}
+                      className={`${INP} flex-1`} />
+                    <input type="date" value={c.fechaVencimiento}
+                      onChange={(e) => actualizarCuota(i, "fechaVencimiento", e.target.value)}
+                      className={`${INP} flex-1`} />
+                    {cuotas.length > 1 && (
+                      <button type="button" onClick={() => quitarCuota(i)}
+                        className="text-gray-400 hover:text-red-600 text-lg leading-none px-1">✕</button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" onClick={agregarCuota}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                  + Agregar cuota
+                </button>
+              </div>
+            )}
+          </div>
+
           {exito && (
             <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-3">
               Factura <strong>{exito}</strong> creada exitosamente.
@@ -162,12 +208,34 @@ export default function ModalFactura({ cotizacion, onClose, onCreada, numeroOrde
             className="text-sm border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition">
             Cancelar
           </button>
-          <button type="button" onClick={guardar} disabled={guardando}
+          <button type="button" onClick={() => validar() && setPreguntandoRetencion(true)} disabled={guardando || !!exito}
             className="text-sm bg-red-600 text-white px-5 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 transition font-medium">
-            {guardando ? "Guardando…" : "Crear factura"}
+            {guardando ? "Guardando…" : exito ? "Creada" : "Crear factura"}
           </button>
         </div>
       </div>
+
+      {preguntandoRetencion && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
+            <h4 className="font-semibold text-gray-800 mb-2">¿Esta operación está gravada con retención?</h4>
+            <p className="text-sm text-gray-500 mb-5">
+              Cotización tipo <span className="font-medium capitalize">{cotizacion.tipo}</span> — si respondes
+              "Sí" se descontará el <strong>{porcentaje}%</strong> del monto de la factura.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => guardar(false)} disabled={guardando}
+                className="text-sm border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition">
+                No
+              </button>
+              <button onClick={() => guardar(true)} disabled={guardando}
+                className="text-sm bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 transition">
+                Sí, gravada
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

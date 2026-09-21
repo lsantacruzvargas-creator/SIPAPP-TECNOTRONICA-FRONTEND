@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { fetchAuth } from "../utils/fetchAuth";
-import ModalEditarFactura from "../components/ModalEditarFactura";
+import DetalleDocumento from "../components/DetalleDocumento";
 import * as XLSX from "xlsx";
 
 const MESES = [
@@ -295,13 +295,19 @@ export default function ListaFacturas() {
                     {f.totalAPagar != null ? Number(f.totalAPagar).toFixed(2) : "—"}
                   </td>
                   <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={f.montoPagado ?? 0}
-                      onChange={(e) => handlePagoChange(f._id, e.target.value)}
-                      onBlur={(e) => handlePagoBlur(f._id, e.target.value)}
-                      className="w-24 text-right border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
-                    />
+                    {f.cuotas?.length > 0 ? (
+                      <span className="text-xs text-gray-400">
+                        {f.cuotas.filter((c) => c.pagado).length}/{f.cuotas.length} cuotas
+                      </span>
+                    ) : (
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={f.montoPagado ?? 0}
+                        onChange={(e) => handlePagoChange(f._id, e.target.value)}
+                        onBlur={(e) => handlePagoBlur(f._id, e.target.value)}
+                        className="w-24 text-right border border-gray-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center text-gray-500">
                     {new Date(f.fechaEmision).toLocaleDateString("es-PE", { timeZone: "UTC" })}
@@ -358,12 +364,12 @@ export default function ListaFacturas() {
     </div>
 
     {seleccionada && (
-      <ModalEditarFactura
-        factura={seleccionada}
+      <DetalleDocumento
+        tipo="factura"
+        data={seleccionada}
         onClose={() => setSeleccionada(null)}
-        onGuardada={(actualizada) => {
+        onFacturaGuardada={(actualizada) => {
           setFacturas((prev) => prev.map((f) => (f._id === actualizada._id ? actualizada : f)));
-          setSeleccionada(actualizada);
           cargar();
         }}
       />

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { fetchAuth } from "../utils/fetchAuth";
-import ModalCotizacion from "../components/ModalCotizacion";
+import DetalleDocumento from "../components/DetalleDocumento";
 import * as XLSX from "xlsx";
 
 const MESES = [
@@ -14,6 +14,17 @@ const FILTROS_VACIO = { empresa: "", planta: "", ano: "", mes: "", tipo: "", oc:
 const codigosOTs = (ots) =>
   ots?.length ? ots.map((o) => o.codigo).join(", ") : null;
 
+// Total real (tal como se guardó, en la moneda de la cotización) + su
+// conversión a la otra moneda usando el Tipo de Cambio compartido.
+const totalesDuales = (c, tipoCambio) => {
+  const totalSinIgv = Number(c.total) / 1.18;
+  const tc = Number(tipoCambio) || 0;
+  if (c.moneda === "USD") {
+    return { propio: totalSinIgv, propioLabel: "USD", otro: tc ? totalSinIgv * tc : null, otroLabel: "PEN" };
+  }
+  return { propio: totalSinIgv, propioLabel: "PEN", otro: tc ? totalSinIgv / tc : null, otroLabel: "USD" };
+};
+
 const badgeEstadoCot = (estado) => {
   const map = {
     "pendiente aprobacion": "bg-gray-100 text-gray-600",
@@ -25,7 +36,7 @@ const badgeEstadoCot = (estado) => {
     "sin ejecutar":         "bg-red-50 text-red-600",
   };
   const labelMap = {
-    "pendiente aprobacion": "Pend. aprobación",
+    "pendiente aprobacion": "Por aprobar",
     "aprobada":             "Aprobada",
     "en progreso":          "En progreso",
     "a la espera de OC":    "Espera OC",
@@ -50,6 +61,11 @@ export default function ListaCotizaciones() {
   const [seleccionada, setSeleccionada] = useState(null);
   const [otsPorCot, setOtsPorCot] = useState(new Map());
   const [ocPorCot, setOcPorCot] = useState(new Map());
+  const [tipoCambio, setTipoCambio] = useState(null);
+
+  useEffect(() => {
+    fetchAuth("/tipo-cambio").then((r) => r.ok && r.json()).then((d) => d && setTipoCambio(d.valor));
+  }, []);
 
   const buildOtsMap = (ots) => {
     const m = new Map();
@@ -313,7 +329,17 @@ export default function ListaCotizaciones() {
                       {new Date(c.fecha).toLocaleDateString("es-PE", { timeZone: "UTC" })}
                     </td>
                     <td className={`px-4 py-3 text-right font-medium ${tdCls}`}>
-                      {(Number(c.total) / 1.18).toFixed(2)}
+                      {(() => {
+                        const { propio, propioLabel, otro, otroLabel } = totalesDuales(c, tipoCambio);
+                        return (
+                          <>
+                            <div>{propio.toFixed(2)} <span className="text-gray-400 font-normal">{propioLabel}</span></div>
+                            {otro != null && (
+                              <div className="text-xs text-gray-400 font-normal">≈ {otro.toFixed(2)} {otroLabel}</div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-center">{ocCell}</td>
                   </tr>
@@ -327,14 +353,14 @@ export default function ListaCotizaciones() {
     </div>
 
     {seleccionada && (
-      <ModalCotizacion
-        cotizacion={seleccionada}
+      <DetalleDocumento
+        tipo="cotizacion"
+        data={seleccionada}
         onClose={() => setSeleccionada(null)}
-        onSaved={(actualizada) => {
+        onCotizacionGuardada={(actualizada) => {
           setCotizaciones((prev) =>
             prev.map((c) => (c._id === actualizada._id ? actualizada : c))
           );
-          setSeleccionada(actualizada);
           fetchAuth("/ordenes-trabajo").then((r) => r.ok && r.json())
             .then((ots) => { if (ots) setOtsPorCot(buildOtsMap(ots)); });
         }}

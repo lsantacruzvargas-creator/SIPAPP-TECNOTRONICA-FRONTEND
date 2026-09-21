@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { fetchAuth } from "../utils/fetchAuth";
-import ModalVerOT from "../components/ModalVerOT";
+import DetalleDocumento from "../components/DetalleDocumento";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -251,14 +251,14 @@ export default function ListaOrdenesTrabajo() {
     </div>
 
     {seleccionada && (
-      <ModalVerOT
-        orden={seleccionada}
+      <DetalleDocumento
+        tipo="ot"
+        data={seleccionada}
         onClose={() => setSeleccionada(null)}
-        onActualizada={(actualizada) => {
+        onOTActualizada={(actualizada) => {
           setOrdenes((prev) =>
             prev.map((o) => (o._id === actualizada._id ? actualizada : o))
           );
-          setSeleccionada(actualizada);
         }}
       />
     )}

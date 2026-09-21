@@ -114,9 +114,9 @@ export default function ModalOrdenCompra({ cotizacion, onClose, onCreada }) {
           <button onClick={onClose} className="text-sm border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition">
             Cancelar
           </button>
-          <button onClick={guardar} disabled={guardando}
+          <button onClick={guardar} disabled={guardando || !!exito}
             className="text-sm bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition font-medium">
-            {guardando ? "Creando…" : "Crear Orden de Compra"}
+            {guardando ? "Creando…" : exito ? "Creada" : "Crear Orden de Compra"}
           </button>
         </div>
       </div>
