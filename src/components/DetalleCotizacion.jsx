@@ -4,6 +4,9 @@ import { exportarCotizacionPdf } from "../utils/cotizacionPdf";
 import { exportarCotizacionPdf as exportarCotizacionPdfPepsico } from "../utils/cotizacionPdf3";
 import { exportarCotizacionVenta } from "../utils/cotizacionVenta";
 import ModalOrdenCompra from "./ModalOrdenCompra";
+import ModalCrearOT from "./ModalCrearOT";
+import BuscadorOrdenTrabajo from "./BuscadorOrdenTrabajo";
+import SelectorEmpresas from "./SelectorEmpresas";
 import SelectorCatalogoServicios from "./SelectorCatalogoServicios";
 import CeldasNumericas from "./CeldasNumericas";
 import {
@@ -11,7 +14,7 @@ import {
   itemDesdeDb, itemVacioVenta, itemVacioServicio, itemVacioPepsico, GRUPOS_PEPSICO,
 } from "../utils/cotizacionItems";
 import {
-  FlujoNegocio, TarjetaRelacion, Chip, badgeOT, badgePago, money,
+  FlujoNegocio, TarjetaRelacion, Chip, SeccionCotizacion, BuscadorEmpresaTexto, badgeOT, badgePago, money,
 } from "./detalleShared";
 
 const RO = "bg-surface-alt border border-line rounded px-2 py-1.5 text-sm text-ink-soft w-full";
@@ -72,18 +75,6 @@ function FilaDescripcionEditable({ item, tipo, onUpdate, onAddSub, onUpdateSub, 
   );
 }
 
-function SeccionCotizacion({ titulo, color, children }) {
-  return (
-    <div className="bg-surface rounded-2xl border border-line shadow-sm p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <span className={`w-1.5 h-5 rounded-full ${color}`} />
-        <h2 className="text-sm font-bold text-ink uppercase tracking-wide">{titulo}</h2>
-      </div>
-      {children}
-    </div>
-  );
-}
-
 function PanelOT({ ot }) {
   const ie = ot.ingresoEquipo;
   const info = ie
@@ -116,7 +107,12 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
   const [error, setError] = useState("");
   const [estadoCot, setEstadoCot] = useState(inicial.estado || "pendiente aprobacion");
   const [form, setForm] = useState({
-    numeroCotizacion: inicial.numeroCotizacion || "",
+    // Cotizaciones creadas antes de que existiera este campo tienen
+    // numeroCotizacion vacío en la base — se autocompleta acá con `codigo`
+    // (mismo criterio que el pre-save del modelo para las nuevas) para que
+    // el input nunca se vea vacío. migrarNumeroCotizacion.js deja esto
+    // persistido de una vez, este fallback es solo mientras tanto.
+    numeroCotizacion: inicial.numeroCotizacion || inicial.codigo || "",
     tipo: inicial.tipo,
     empresa: inicial.empresa?._id || "",
     condicionPago: inicial.condicionPago || "",
@@ -130,12 +126,22 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
     tarjeta:    inicial.tarjeta || "",
     equipo:     inicial.equipo || "",
     garantia:   inicial.garantia || "",
+    plazoEntrega:  inicial.plazoEntrega || "",
+    validezOferta: inicial.validezOferta || "",
+    // Exclusivos de Pepsico — reemplazan al viejo "Grupo IV" (ver más abajo).
+    utilidadPorcentaje:              inicial.utilidadPorcentaje ?? 20,
+    costosAdministrativosPorcentaje: inicial.costosAdministrativosPorcentaje ?? 6,
+    costosFinancierosPorcentaje:     inicial.costosFinancierosPorcentaje ?? 4.5,
   });
   const [items, setItems] = useState((inicial.items || []).map(itemDesdeDb));
   const [empresas, setEmpresas] = useState([]);
+  // Empresa como texto libre además del selector — ver BuscadorEmpresaTexto.
+  const [busquedaEmpresa, setBusquedaEmpresa] = useState(
+    inicial.empresa ? (inicial.empresa.alias ? `${inicial.empresa.alias} — ${inicial.empresa.razonSocial}` : inicial.empresa.razonSocial) : ""
+  );
   const [ie, setIe] = useState(null);
-  const [otsParaVincular, setOtsParaVincular] = useState([]);
   const [otVinculadaId, setOtVinculadaId] = useState("");
+  const [otVinculadaSel, setOtVinculadaSel] = useState(null);
   const [otOriginalId, setOtOriginalId] = useState("");
   const [otsVinculadas, setOtsVinculadas] = useState([]);
   const [aDesvincular, setADesvincular] = useState(new Set());
@@ -146,6 +152,9 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
 
   const [confirmarOC, setConfirmarOC] = useState(false);
   const [crearOC, setCrearOC]         = useState(false);
+  const [crearOT, setCrearOT]         = useState(false);
+  const [buscadorOTOpen, setBuscadorOTOpen] = useState(false);
+  const [empresasOpen, setEmpresasOpen] = useState(false);
 
   const [catalogoOpen, setCatalogoOpen] = useState(false);
   const [catalogoTarget, setCatalogoTarget] = useState(null);
@@ -168,6 +177,9 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
     }
   };
 
+  const cargarEmpresas = () =>
+    fetchAuth("/empresas").then((r) => r.ok && r.json()).then((d) => d && setEmpresas(d));
+
   useEffect(() => {
     Promise.all([
       fetchAuth("/empresas").then((r) => r.ok && r.json()),
@@ -176,10 +188,7 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
       fetchAuth("/facturas").then((r) => r.ok ? r.json() : []),
     ]).then(([emps, otsData, ocs, facts]) => {
       if (emps) setEmpresas(emps);
-      if (otsData) {
-        setOtsParaVincular(otsData.filter((o) => o.ingresoEquipo));
-        cargarOts(otsData);
-      }
+      if (otsData) cargarOts(otsData);
       setOc(ocs.find((o) => (o.cotizacion?._id || o.cotizacion) === cot._id) || null);
       setFactura(facts.find((f) => (f.cotizacion?._id || f.cotizacion) === cot._id) || null);
     });
@@ -194,7 +203,25 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
     });
   };
 
+  const seleccionarOtVinculada = (ot) => {
+    setOtVinculadaId(ot?._id || "");
+    setOtVinculadaSel(ot || null);
+    setIe(ot?.ingresoEquipo || null);
+    setForm((f) => ({ ...f, equipo: ot?.ingresoEquipo?.tipoEquipo || "" }));
+    setBuscadorOTOpen(false);
+  };
+
   const handleForm = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const cambiarBusquedaEmpresa = (texto) => {
+    setBusquedaEmpresa(texto);
+    if (form.empresa) setForm((f) => ({ ...f, empresa: "" }));
+  };
+
+  const seleccionarEmpresa = (e) => {
+    setForm((f) => ({ ...f, empresa: e._id }));
+    setBusquedaEmpresa(e.alias ? `${e.alias} — ${e.razonSocial}` : e.razonSocial);
+  };
 
   const actualizarItem = (key, campo, valor) =>
     setItems((prev) => prev.map((it) => (it._key === key ? { ...it, [campo]: valor } : it)));
@@ -267,8 +294,16 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
     ? items.filter(i => ["I","II","III"].includes(i.grupo)).reduce((s, i) => s + Number(i.cantidad) * Number(i.precio), 0)
     : 0;
 
+  // Reemplaza al viejo "Grupo IV" (tabla libre de ítems con % a mano) — 3
+  // campos fijos (Utilidad/Costos Administrativos/Costos Financieros),
+  // exclusivos de Pepsico, cada uno % de baseIIIgrupos (pedido del usuario,
+  // 2026-09-21).
+  const utilidadMonto              = esPepsico ? baseIIIgrupos * (Number(form.utilidadPorcentaje) || 0) / 100 : 0;
+  const costosAdministrativosMonto = esPepsico ? baseIIIgrupos * (Number(form.costosAdministrativosPorcentaje) || 0) / 100 : 0;
+  const costosFinancierosMonto     = esPepsico ? baseIIIgrupos * (Number(form.costosFinancierosPorcentaje) || 0) / 100 : 0;
+
   const subtotalBruto = esPepsico
-    ? parseFloat((baseIIIgrupos + items.filter(i => i.grupo === "IV").reduce((s, it) => s + it.cantidad / 100 * baseIIIgrupos, 0)).toFixed(2))
+    ? parseFloat((baseIIIgrupos + utilidadMonto + costosAdministrativosMonto + costosFinancierosMonto).toFixed(2))
     : parseFloat(items.reduce((s, it) => s + calcSubtotal(it), 0).toFixed(2));
 
   const descuentoTotal = esPepsico
@@ -306,6 +341,7 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
       items: itemsParaGuardar(),
       subtotal, igv, total,
     };
+    if (!payload.empresa && busquedaEmpresa.trim()) payload.empresaNombre = busquedaEmpresa.trim();
     if (!payload.empresa) delete payload.empresa;
 
     const res = await fetchAuth(`/cotizaciones/${cot._id}`, {
@@ -411,6 +447,11 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
     garantia: form.garantia,
     atencion: form.atencion,
     solped: form.solped,
+    plazoEntrega: form.plazoEntrega,
+    validezOferta: form.validezOferta,
+    utilidadPorcentaje: form.utilidadPorcentaje,
+    costosAdministrativosPorcentaje: form.costosAdministrativosPorcentaje,
+    costosFinancierosPorcentaje: form.costosFinancierosPorcentaje,
     items: itemsParaGuardar(),
     subtotal, igv, total,
   });
@@ -515,12 +556,21 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
               <SeccionCotizacion titulo="Datos del cliente" color="bg-blue-500">
                 <div>
                   <label className="block text-xs text-ink-muted mb-1">Empresa</label>
-                  <select name="empresa" value={form.empresa} onChange={handleForm} className={`w-full ${INP}`}>
-                    <option value="">Sin empresa</option>
-                    {empresas.map((e) => (
-                      <option key={e._id} value={e._id}>{e.alias} — {e.razonSocial}</option>
-                    ))}
-                  </select>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <BuscadorEmpresaTexto
+                        empresas={empresas}
+                        texto={busquedaEmpresa}
+                        empresaId={form.empresa}
+                        onTexto={cambiarBusquedaEmpresa}
+                        onSeleccionar={seleccionarEmpresa}
+                      />
+                    </div>
+                    <button type="button" onClick={() => setEmpresasOpen(true)}
+                      className="shrink-0 text-xs border border-line-strong px-3 rounded-lg hover:bg-surface-hover transition">
+                      Empresas
+                    </button>
+                  </div>
                 </div>
               </SeccionCotizacion>
 
@@ -532,15 +582,12 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
                       placeholder="—" className={`w-full ${INP}`} />
                   </div>
                   <div>
-                    <label className="block text-xs text-ink-muted mb-1">Fecha</label>
-                    <input type="date" name="fecha" value={form.fecha} onChange={handleForm} className={`w-full ${INP}`} />
+                    <label className="block text-xs text-ink-muted mb-1">Condición de pago</label>
+                    <input name="condicionPago" value={form.condicionPago} onChange={handleForm} className={`w-full ${INP}`} />
                   </div>
                   <div>
-                    <label className="block text-xs text-ink-muted mb-1">Tipo</label>
-                    <select name="tipo" value={form.tipo} onChange={handleForm} className={`w-full ${INP}`}>
-                      <option value="venta">Venta</option>
-                      <option value="servicio">Servicio</option>
-                    </select>
+                    <label className="block text-xs text-ink-muted mb-1">Fecha</label>
+                    <input type="date" name="fecha" value={form.fecha} onChange={handleForm} className={`w-full ${INP}`} />
                   </div>
                   <div>
                     <label className="block text-xs text-ink-muted mb-1">Moneda</label>
@@ -549,15 +596,6 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
                       <option value="USD">Dólares (USD)</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-xs text-ink-muted mb-1">Condición de pago</label>
-                    <input name="condicionPago" value={form.condicionPago} onChange={handleForm} className={`w-full ${INP}`} />
-                  </div>
-                </div>
-              </SeccionCotizacion>
-
-              <SeccionCotizacion titulo="Otros datos" color="bg-gray-400">
-                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-ink-muted mb-1">Atención</label>
                     <input name="atencion" value={form.atencion} onChange={handleForm} placeholder="Nombre del destinatario" className={`w-full ${INP}`} />
@@ -571,6 +609,30 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
                     <input name="referencia" value={form.referencia} onChange={handleForm} className={`w-full ${INP}`} />
                   </div>
                   <div>
+                    <label className="block text-xs text-ink-muted mb-1">Tiempo de entrega</label>
+                    <input name="plazoEntrega" value={form.plazoEntrega} onChange={handleForm}
+                      placeholder="Ej. 15 días hábiles…" className={`w-full ${INP}`} />
+                  </div>
+                  {esPepsico && (
+                    <div>
+                      <label className="block text-xs text-ink-muted mb-1">Validez de la oferta</label>
+                      <input name="validezOferta" value={form.validezOferta} onChange={handleForm}
+                        placeholder="ej: 30 días calendario" className={`w-full ${INP}`} />
+                    </div>
+                  )}
+                </div>
+              </SeccionCotizacion>
+
+              <SeccionCotizacion titulo="Otros datos" color="bg-gray-400">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">Tipo</label>
+                    <select name="tipo" value={form.tipo} onChange={handleForm} className={`w-full ${INP}`}>
+                      <option value="venta">Venta</option>
+                      <option value="servicio">Servicio</option>
+                    </select>
+                  </div>
+                  <div>
                     <label className="block text-xs text-ink-muted mb-1">Módulo</label>
                     <input name="modulo" value={form.modulo} onChange={handleForm} className={`w-full ${INP}`} />
                   </div>
@@ -579,23 +641,8 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
                     <input name="tarjeta" value={form.tarjeta} onChange={handleForm} className={`w-full ${INP}`} />
                   </div>
                   <div>
-                    <label className="block text-xs text-ink-muted mb-1">Equipo (OT vinculada)</label>
-                    <select
-                      value={otVinculadaId}
-                      onChange={(e) => {
-                        const id = e.target.value;
-                        setOtVinculadaId(id);
-                        const ot = otsParaVincular.find((o) => o._id === id);
-                        setIe(ot?.ingresoEquipo || null);
-                        setForm((f) => ({ ...f, equipo: ot?.ingresoEquipo?.tipoEquipo || "" }));
-                      }}
-                      className={`w-full ${INP}`}
-                    >
-                      <option value="">Sin OT vinculada</option>
-                      {otsParaVincular.map((o) => (
-                        <option key={o._id} value={o._id}>{o.codigo} — {o.ingresoEquipo?.tipoEquipo || o.titulo}</option>
-                      ))}
-                    </select>
+                    <label className="block text-xs text-ink-muted mb-1">Equipo</label>
+                    <input name="equipo" value={form.equipo} onChange={handleForm} className={`w-full ${INP}`} />
                   </div>
                 </div>
               </SeccionCotizacion>
@@ -645,7 +692,7 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
               </TarjetaRelacion>
 
               {otsVinculadas.length === 0 ? (
-                <TarjetaRelacion tipo="ot" vacio />
+                <TarjetaRelacion tipo="ot" vacio onCrear={() => setCrearOT(true)} crearLabel="orden de trabajo" />
               ) : (
                 otsVinculadas.map((o) => (
                   <TarjetaRelacion key={o._id} tipo="ot" codigo={o.codigo}
@@ -654,6 +701,23 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
                   </TarjetaRelacion>
                 ))
               )}
+
+              <div className="-mt-2 px-1">
+                {otVinculadaId && otVinculadaId !== otOriginalId ? (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-amber-600">
+                      Se vinculará al guardar: <span className="font-mono">{otVinculadaSel?.codigo}</span>
+                    </span>
+                    <button type="button" onClick={() => seleccionarOtVinculada(null)}
+                      className="text-ink-muted hover:text-red-500">✕</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setBuscadorOTOpen(true)}
+                    className="text-xs text-accent hover:text-accent-strong underline">
+                    + Vincular OT existente
+                  </button>
+                )}
+              </div>
 
               <TarjetaRelacion
                 tipo="informe"
@@ -695,7 +759,7 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {["I", "II", "III", "IV"].flatMap(g => {
+                    {["I", "II", "III"].flatMap(g => {
                       const grupoItems = items.filter(i => i.grupo === g);
                       if (!grupoItems.length) return [];
                       return [
@@ -705,10 +769,7 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
                           </td>
                         </tr>,
                         ...grupoItems.map(item => {
-                          const esIV = item.grupo === "IV";
-                          const importe = esIV
-                            ? (item.cantidad / 100 * baseIIIgrupos).toFixed(2)
-                            : calcSubtotal(item).toFixed(2);
+                          const importe = calcSubtotal(item).toFixed(2);
                           return (
                             <tr key={item._key}>
                               <td className="px-3 py-2 align-top w-[72%]">
@@ -726,18 +787,14 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
                                   required className={`w-16 text-center ${INP}`} />
                               </td>
                               <td className="px-3 py-2 align-top text-center text-sm text-ink-soft">
-                                {esIV ? "%" : (
-                                  <input type="text" value={item.unidadMedida}
-                                    onChange={(e) => actualizarItem(item._key, "unidadMedida", e.target.value)}
-                                    className={`w-14 text-center ${INP}`} placeholder="UN" />
-                                )}
+                                <input type="text" value={item.unidadMedida}
+                                  onChange={(e) => actualizarItem(item._key, "unidadMedida", e.target.value)}
+                                  className={`w-14 text-center ${INP}`} placeholder="UN" />
                               </td>
                               <td className="px-3 py-2 align-top">
-                                {!esIV && (
-                                  <input type="number" min="0" step="0.01" value={item.precio}
-                                    onChange={(e) => actualizarItem(item._key, "precio", parseFloat(e.target.value) || 0)}
-                                    required className={`w-24 text-right ${INP}`} />
-                                )}
+                                <input type="number" min="0" step="0.01" value={item.precio}
+                                  onChange={(e) => actualizarItem(item._key, "precio", parseFloat(e.target.value) || 0)}
+                                  required className={`w-24 text-right ${INP}`} />
                               </td>
                               <td className="px-3 py-2 align-top text-right font-medium text-ink-soft">{importe}</td>
                               <td className="px-3 py-2 align-top">
@@ -749,6 +806,32 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
                         }),
                       ];
                     })}
+                    {/* IV — Utilidad + gastos administrativos: 3 filas fijas (no editables en
+                        descripción ni eliminables), % en la columna Cant., importe calculado sobre
+                        baseIIIgrupos en vez de leído de un ítem. */}
+                    <tr>
+                      <td colSpan={6} className="px-3 py-1.5 bg-surface-hover text-xs font-semibold text-ink-soft">
+                        IV — Utilidad + gastos administrativos
+                      </td>
+                    </tr>
+                    {[
+                      { label: "Utilidad", name: "utilidadPorcentaje", monto: utilidadMonto },
+                      { label: "Costos Administrativos", name: "costosAdministrativosPorcentaje", monto: costosAdministrativosMonto },
+                      { label: "Costos Financieros", name: "costosFinancierosPorcentaje", monto: costosFinancierosMonto },
+                    ].map((campo) => (
+                      <tr key={campo.name}>
+                        <td className="px-3 py-2 align-top w-[72%] text-ink">{campo.label}</td>
+                        <td className="px-3 py-2 align-top">
+                          <input type="number" min="0" step="0.1" name={campo.name}
+                            value={form[campo.name]} onChange={handleForm}
+                            className={`w-16 text-center ${INP}`} />
+                        </td>
+                        <td className="px-3 py-2 align-top text-center text-sm text-ink-soft">%</td>
+                        <td className="px-3 py-2 align-top text-center text-ink-muted">—</td>
+                        <td className="px-3 py-2 align-top text-right font-medium text-ink-soft">{campo.monto.toFixed(2)}</td>
+                        <td className="px-3 py-2 align-top"></td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               ) : (
@@ -759,7 +842,6 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
                       <th className="px-3 py-2 text-center">Cant.</th>
                       <th className="px-3 py-2 text-center">T. de entrega</th>
                       <th className="px-3 py-2 text-right">Precio</th>
-                      <th className="px-3 py-2 text-center">Mon.</th>
                       {form.tipo !== "venta" && <th className="px-3 py-2 text-center">Desc. %</th>}
                       <th className="px-3 py-2 text-right">Subtotal</th>
                       <th className="px-3 py-2"></th>
@@ -803,7 +885,7 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
 
             {esPepsico ? (
               <div className="flex gap-2 flex-wrap">
-                {["I", "II", "III", "IV"].map(g => (
+                {["I", "II", "III"].map(g => (
                   <button key={g} type="button" onClick={() => agregarItemPepsico(g)}
                     className="text-xs text-ink-soft border border-line-strong hover:border-ink-muted hover:text-ink px-3 py-1.5 rounded-lg transition">
                     + {GRUPOS_PEPSICO[g]}
@@ -877,6 +959,38 @@ export default function DetalleCotizacion({ cotizacion: inicial, onClose, onSave
       {crearOC && (
         <ModalOrdenCompra cotizacion={cot} onClose={() => setCrearOC(false)}
           onCreada={(nuevaOC) => { setCrearOC(false); setOc(nuevaOC); }} />
+      )}
+
+      {crearOT && (
+        <ModalCrearOT cotizacion={cot} onClose={() => setCrearOT(false)}
+          onCreada={(nuevaOT) => {
+            setCrearOT(false);
+            setOtsVinculadas((prev) => [...prev, nuevaOT]);
+            setOtOriginalId(nuevaOT._id);
+            setOtVinculadaId(nuevaOT._id);
+            if (nuevaOT.ingresoEquipo) setIe(nuevaOT.ingresoEquipo);
+          }} />
+      )}
+
+      {buscadorOTOpen && (
+        <BuscadorOrdenTrabajo excluirCotizacionId={cot._id}
+          onClose={() => setBuscadorOTOpen(false)}
+          onSelect={(orden) => seleccionarOtVinculada(orden)} />
+      )}
+
+      {empresasOpen && (
+        <SelectorEmpresas
+          empresas={empresas}
+          onClose={() => setEmpresasOpen(false)}
+          onSeleccionar={(e) => {
+            seleccionarEmpresa(e);
+            setEmpresasOpen(false);
+          }}
+          onCambio={async (guardada, { esNueva }) => {
+            await cargarEmpresas();
+            if (esNueva) seleccionarEmpresa(guardada);
+          }}
+        />
       )}
 
       {/* Confirmación guardar cambios */}

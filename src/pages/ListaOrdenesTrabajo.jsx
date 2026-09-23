@@ -167,6 +167,7 @@ export default function ListaOrdenesTrabajo() {
               <th className="px-4 py-3 text-left">Cotización</th>
               <th className="px-4 py-3 text-left">Empresa</th>
               <th className="px-4 py-3 text-left">Título</th>
+              <th className="px-4 py-3 text-left">Marca / Modelo / Serie</th>
               <th className="px-4 py-3 text-center">Prioridad</th>
               <th className="px-4 py-3 text-center">Estado</th>
               <th className="px-4 py-3 text-left">Personal</th>
@@ -178,7 +179,7 @@ export default function ListaOrdenesTrabajo() {
           <tbody className="divide-y divide-gray-100">
             {filtradas.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={11} className="px-4 py-8 text-center text-gray-400">
                   {Object.values(filtros).some(Boolean)
                     ? "Sin resultados para los filtros aplicados"
                     : "Sin órdenes de trabajo registradas"}
@@ -194,21 +195,31 @@ export default function ListaOrdenesTrabajo() {
                   className={`hover:bg-gray-50 cursor-pointer ${ieAnulada ? "opacity-50" : ""}`}
                   onClick={() => setSeleccionada(o)}
                 >
-                  <td className={`px-4 py-3 font-mono text-xs text-gray-500 ${tdCls}`}>{o.codigo}</td>
+                  <td className={`px-4 py-3 font-mono text-xs text-gray-500 ${tdCls}`}>
+                    <span className="inline-flex items-center gap-1.5">
+                      {o.codigo}
+                      {o.ingresoEquipo?.garantia && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700 tracking-wide">
+                          Garantía{o.ingresoEquipo.cotizacionGarantia && ` · ${o.ingresoEquipo.cotizacionGarantia.numeroCotizacion || o.ingresoEquipo.cotizacionGarantia.codigo}`}
+                        </span>
+                      )}
+                    </span>
+                  </td>
                   <td className={`px-4 py-3 font-mono text-ms text-black-400 ${tdCls}`}>
                     {o.cotizacion?.codigo || "—"}
                   </td>
                   <td className={`px-4 py-3 ${tdCls}`}>
                     {o.empresa ? (
-                      <span>
-                        <span className="font-medium">{o.empresa.alias}</span>
-                        <span className="text-gray-400"> — {o.empresa.razonSocial}</span>
-                      </span>
+                      <span className="font-medium">{o.empresa.alias || o.empresa.razonSocial}</span>
                     ) : (
                       <span className="text-gray-400">Sin empresa</span>
                     )}
                   </td>
-                  <td className={`px-4 py-3 max-w-xs truncate ${tdCls}`}>{o.titulo}</td>
+                  <td className={`px-4 py-3 max-w-xs truncate ${tdCls}`} title={o.titulo}>{o.titulo}</td>
+                  <td className={`px-4 py-3 text-gray-500 ${tdCls}`}>
+                    {[o.ingresoEquipo?.marca, o.ingresoEquipo?.modelo, o.ingresoEquipo?.numeroSerie].filter(Boolean).join(" / ")
+                      || <span className="text-gray-300">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${badgePrioridad(o.prioridad)}`}>
                       {o.prioridad}

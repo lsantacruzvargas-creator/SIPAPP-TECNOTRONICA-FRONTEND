@@ -33,17 +33,6 @@ export default function CeldasNumericas({ item, ro, onUpdate, showFechaEntrega =
           className={`w-24 text-right ${ro ? INP_RO : INP}`}
         />
       </td>
-      <td className="px-3 py-2 text-center">
-        <select
-          value={item.moneda}
-          onChange={(e) => onUpdate(item._key, "moneda", e.target.value)}
-          disabled={ro}
-          className={ro ? "bg-transparent text-sm text-center" : `${INP} text-center`}
-        >
-          <option value="PEN">S/</option>
-          <option value="USD">$</option>
-        </select>
-      </td>
     </>
   );
 }

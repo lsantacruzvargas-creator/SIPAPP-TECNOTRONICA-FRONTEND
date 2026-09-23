@@ -75,7 +75,7 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
 
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
-  doc.text("Moneda: PEN ", margin + 100, y);
+  doc.text(`Moneda: ${cotizacion.moneda === "USD" ? "USD" : "PEN"} `, margin + 100, y);
 
   y += 5;
   doc.setFontSize(8);
@@ -300,7 +300,6 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
     "I": "Materiales o repuestos",
     "II": "Mano de obra",
     "III": "Traslados",
-    "IV": "Utilidad + gastos administrativos",
   };
 
   const baseIIIgrupos = cotizacion.items
@@ -308,7 +307,7 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
     .reduce((sum, i) => sum + Number(i.cantidad) * Number(i.precio), 0);
 
   const body = [];
-  ["I", "II", "III", "IV"].forEach(g => {
+  ["I", "II", "III"].forEach(g => {
     const grupoItems = cotizacion.items.filter(i => i.grupo === g);
     if (!grupoItems.length) return;
 
@@ -320,9 +319,7 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
 
     let subtotalGrupo = 0;
     grupoItems.forEach(item => {
-      const importe = item.grupo === "IV"
-        ? (Number(item.cantidad) / 100 * baseIIIgrupos)
-        : (Number(item.cantidad) * Number(item.precio));
+      const importe = Number(item.cantidad) * Number(item.precio);
       subtotalGrupo += importe;
 
       body.push([
@@ -330,7 +327,7 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
         item.descripcion,
         item.cantidad,
         item.unidadMedida || "UN",
-        item.grupo !== "IV" ? Number(item.precio).toFixed(2) : "—",
+        Number(item.precio).toFixed(2),
         importe.toFixed(2),
       ]);
     });
@@ -342,6 +339,30 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
     ]);
   });
 
+  // "Grupo IV" — reemplazado por 3 campos fijos (Utilidad/Costos
+  // Administrativos/Costos Financieros), cada uno % de baseIIIgrupos
+  // (pedido del usuario, 2026-09-21).
+  const utilidadPct   = Number(cotizacion.utilidadPorcentaje) || 0;
+  const costosAdminPct = Number(cotizacion.costosAdministrativosPorcentaje) || 0;
+  const costosFinPct  = Number(cotizacion.costosFinancierosPorcentaje) || 0;
+  const utilidadMonto   = baseIIIgrupos * utilidadPct / 100;
+  const costosAdminMonto = baseIIIgrupos * costosAdminPct / 100;
+  const costosFinMonto  = baseIIIgrupos * costosFinPct / 100;
+
+  body.push([
+    { content: "IV", styles: { fontStyle: "bold", fillColor: [220, 220, 220] } },
+    { content: "Utilidad + gastos administrativos", colSpan: 4, styles: { fontStyle: "bold", fillColor: [220, 220, 220] } },
+    { content: "", styles: { fillColor: [220, 220, 220] } },
+  ]);
+  body.push(["", `Utilidad (${utilidadPct}%)`, "", "%", "—", utilidadMonto.toFixed(2)]);
+  body.push(["", `Costos Administrativos (${costosAdminPct}%)`, "", "%", "—", costosAdminMonto.toFixed(2)]);
+  body.push(["", `Costos Financieros (${costosFinPct}%)`, "", "%", "—", costosFinMonto.toFixed(2)]);
+  body.push([
+    { content: "", styles: { fillColor: [240, 240, 240] } },
+    { content: "Subtotal IV", colSpan: 4, styles: { fontStyle: "bold", halign: "right", fillColor: [240, 240, 240] } },
+    { content: (utilidadMonto + costosAdminMonto + costosFinMonto).toFixed(2), styles: { fontStyle: "bold", halign: "right", fillColor: [240, 240, 240] } },
+  ]);
+
   autoTable(doc, {
     startY: y,
     head: [["Item", "Descripción", "Cantidad", "UM", "P. Unit.", "Importe Total"]],
@@ -350,7 +371,7 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
       [
         { content: "", colSpan: 4, styles: { fillColor: [30, 30, 30] } },
         { content: "TOTAL", styles: { fontStyle: "bold", halign: "right", fillColor: [30, 30, 30], textColor: [255, 255, 255] } },
-        { content: `S/ ${Number(cotizacion.subtotal).toFixed(2)}`, styles: { fontStyle: "bold", fillColor: [30, 30, 30], textColor: [255, 255, 255] } },
+        { content: `${cotizacion.moneda === "USD" ? "$" : "S/"} ${Number(cotizacion.subtotal).toFixed(2)}`, styles: { fontStyle: "bold", fillColor: [30, 30, 30], textColor: [255, 255, 255] } },
       ],
       // [
       //   { content: "", colSpan: 4, styles: { fillColor: [30, 30, 30] } },

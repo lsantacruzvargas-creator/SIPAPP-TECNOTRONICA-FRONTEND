@@ -5,7 +5,17 @@ const INP    = "border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outlin
 const INP_RO = "border border-gray-100 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500 w-full cursor-not-allowed";
 
 export default function ModalOrdenCompra({ cotizacion, onClose, onCreada }) {
-  const [monto, setMonto]               = useState(cotizacion.total ?? 0);
+  // `monto` es el SUBTOTAL sin IGV (mismo valor que se manda al guardar) —
+  // antes este estado guardaba el total con IGV pero el input mostraba
+  // monto/1.18 con .toFixed(2) en cada render, mientras onChange escribía
+  // el valor tipeado directo en `monto` sin revertir esa conversión: cada
+  // tecla disparaba un recálculo que hacía "saltar" el valor mostrado, así
+  // que en la práctica no se podía editar. Ahora el estado y el input
+  // manejan el mismo número, sin conversión de por medio — permite crear
+  // una OC con monto distinto (incluido menor) al de la cotización.
+  const [monto, setMonto] = useState(() =>
+    cotizacion.subtotal != null ? Number(cotizacion.subtotal) : (Number(cotizacion.total) || 0) / 1.18
+  );
   const [numeroOrden, setNumeroOrden] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError]         = useState("");
@@ -24,7 +34,7 @@ export default function ModalOrdenCompra({ cotizacion, onClose, onCreada }) {
         cotizacion:    cotizacion._id,
         empresa:       emp?._id,
         titulo:        cotizacion.referencia || cotizacion.titulo,
-        monto:         Number(monto/1.18).toFixed(2), // Guardamos el monto sin IGV
+        monto:         Number(monto).toFixed(2), // `monto` ya es el subtotal sin IGV
         numeroOrden: numeroOrden || undefined,
       }),
     });
@@ -91,14 +101,15 @@ export default function ModalOrdenCompra({ cotizacion, onClose, onCreada }) {
           </div>
 
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Monto (S/)</label>
+            <label className="text-xs text-gray-500 block mb-1">Monto sin IGV (S/)</label>
             <input
               type="number"
-              value={Number(monto/1.18).toFixed(2)}
+              value={monto}
               onChange={(e) => setMonto(e.target.value)}
               className={INP}
               min="0"
-              step="0.1"
+              step="0.01"
+              placeholder="0.00"
             />
           </div>
 

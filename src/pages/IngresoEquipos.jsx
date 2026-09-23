@@ -34,13 +34,17 @@ const FORM_VACIO = {
   descripcionProblema: "",
   numeroGuiaEmision: "",
   garantia: "false",
+  cotizacionGarantia: "",
   estado: "recibido",
 };
 
 export default function IngresoEquipos() {
   const [ingresos, setIngresos]     = useState([]);
   const [empresas, setEmpresas]     = useState([]);
+  const [cotizaciones, setCotizaciones] = useState([]);
   const [otMap, setOtMap]           = useState({});
+  const [busquedaCot, setBusquedaCot] = useState("");
+  const [dropdownCot, setDropdownCot] = useState(false);
   const [busqueda, setBusqueda]         = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("");
   const [anioFiltro, setAnioFiltro]     = useState("");
@@ -62,9 +66,11 @@ export default function IngresoEquipos() {
       fetchAuth("/ingresos-equipo").then((r) => r.ok ? r.json() : []),
       fetchAuth("/empresas").then((r) => r.ok ? r.json() : []),
       fetchAuth("/ordenes-trabajo").then((r) => r.ok ? r.json() : []),
-    ]).then(([ings, emps, ots]) => {
+      fetchAuth("/cotizaciones").then((r) => r.ok ? r.json() : []),
+    ]).then(([ings, emps, ots, cots]) => {
       setIngresos(ings);
       setEmpresas(emps);
+      setCotizaciones(cots);
       const m = {};
       ots.forEach((ot) => {
         const ieId = ot.ingresoEquipo?._id || ot.ingresoEquipo;
@@ -78,12 +84,18 @@ export default function IngresoEquipos() {
   const abrirNuevo = () => {
     setSeleccionado(null);
     setForm(FORM_VACIO);
+    setBusquedaCot("");
     setError("");
     setModalAbierto(true);
   };
 
   const abrirEditar = (ing) => {
     setSeleccionado(ing);
+    setBusquedaCot(
+      ing.cotizacionGarantia?.codigo
+        ? `${ing.cotizacionGarantia.codigo}${ing.cotizacionGarantia.titulo ? ` — ${ing.cotizacionGarantia.titulo}` : ""}`
+        : ""
+    );
     setForm({
       empresa:                  ing.empresa?._id || "",
       planta:                   ing.planta || "",
@@ -100,6 +112,7 @@ export default function IngresoEquipos() {
       descripcionProblema:      ing.descripcionProblema || "",
       numeroGuiaEmision:        ing.numeroGuiaEmision || "",
       garantia:                 String(ing.garantia ?? false),
+      cotizacionGarantia:       ing.cotizacionGarantia?._id || "",
       estado:                   ing.estado || "recibido",
     });
     setError("");
@@ -111,6 +124,10 @@ export default function IngresoEquipos() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value, ...(name === "empresa" ? { planta: "" } : {}) }));
+    if (name === "garantia" && value === "false") {
+      setForm((f) => ({ ...f, cotizacionGarantia: "" }));
+      setBusquedaCot("");
+    }
   };
 
   const guardar = async () => {
@@ -300,7 +317,7 @@ export default function IngresoEquipos() {
               <th className="px-4 py-3 text-left">Cliente</th>
               <th className="px-4 py-3 text-left">Planta</th>
               <th className="px-4 py-3 text-left">Tipo de equipo</th>
-              <th className="px-4 py-3 text-left">Marca / Modelo</th>
+              <th className="px-4 py-3 text-left">Marca / Modelo / Serie</th>
               <th className="px-4 py-3 text-center">Fecha ingreso</th>
               <th className="px-4 py-3 text-center">Código OT</th>
               <th className="px-4 py-3 text-center">Estado OT</th>
@@ -338,7 +355,7 @@ export default function IngresoEquipos() {
                   </td>
                   <td className={`px-4 py-3 text-gray-700 ${tdCls}`}>{i.tipoEquipo}</td>
                   <td className={`px-4 py-3 text-gray-500 ${tdCls}`}>
-                    {[i.marca, i.modelo].filter(Boolean).join(" / ") || <span className="text-gray-300">—</span>}
+                    {[i.marca, i.modelo, i.numeroSerie].filter(Boolean).join(" / ") || <span className="text-gray-300">—</span>}
                   </td>
                   <td className={`px-4 py-3 text-center text-gray-500 ${tdCls}`}>
                     {new Date(i.fechaIngreso).toLocaleDateString("es-PE", { timeZone: "UTC" })}
@@ -362,7 +379,11 @@ export default function IngresoEquipos() {
                   </td>
                   <td className="px-4 py-3 text-center">
                     {i.garantia
-                      ? <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700">Garantía</span>
+                      ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700">
+                          Garantía{i.cotizacionGarantia && ` · ${i.cotizacionGarantia.numeroCotizacion || i.cotizacionGarantia.codigo}`}
+                        </span>
+                      )
                       : <span className="text-gray-300 text-xs">No</span>}
                   </td>
                 </tr>
@@ -545,6 +566,70 @@ export default function IngresoEquipos() {
                   <option value="true">Sí — en garantía</option>
                 </select>
               </div>
+
+              {form.garantia === "true" && (
+                <div className="relative">
+                  <label className="text-xs text-gray-500 block mb-1">Cotización inicial anexada</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={busquedaCot}
+                      onChange={(e) => {
+                        setBusquedaCot(e.target.value);
+                        setDropdownCot(true);
+                        setForm((f) => ({ ...f, cotizacionGarantia: "" }));
+                      }}
+                      onFocus={() => setDropdownCot(true)}
+                      onBlur={() => setTimeout(() => setDropdownCot(false), 150)}
+                      placeholder="Buscar por código, título o empresa…"
+                      className={`flex-1 ${INP}`}
+                    />
+                    {form.cotizacionGarantia && (
+                      <button
+                        type="button"
+                        onClick={() => { setForm((f) => ({ ...f, cotizacionGarantia: "" })); setBusquedaCot(""); }}
+                        className="text-xs text-gray-400 hover:text-red-500 px-2 transition"
+                        title="Quitar cotización anexada"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  {dropdownCot && busquedaCot.trim() && !form.cotizacionGarantia && (
+                    <ul className="absolute z-10 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto text-sm">
+                      {cotizaciones
+                        .filter((c) => {
+                          const q = busquedaCot.toLowerCase();
+                          return (
+                            c.codigo?.toLowerCase().includes(q) ||
+                            c.titulo?.toLowerCase().includes(q) ||
+                            c.empresa?.razonSocial?.toLowerCase().includes(q) ||
+                            c.empresa?.alias?.toLowerCase().includes(q)
+                          );
+                        })
+                        .slice(0, 8)
+                        .map((c) => (
+                          <li
+                            key={c._id}
+                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer"
+                            onMouseDown={() => {
+                              setForm((f) => ({ ...f, cotizacionGarantia: c._id }));
+                              setBusquedaCot(`${c.codigo}${c.titulo ? ` — ${c.titulo}` : ""}`);
+                              setDropdownCot(false);
+                            }}
+                          >
+                            <span className="font-mono text-xs text-gray-500 mr-2">{c.codigo}</span>
+                            <span>{c.titulo || "Sin título"}</span>
+                            {c.empresa && (
+                              <span className="text-gray-400 ml-1 text-xs">
+                                · {c.empresa.alias || c.empresa.razonSocial}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
+              )}
 
               {/* Estado */}
               {/* <div>

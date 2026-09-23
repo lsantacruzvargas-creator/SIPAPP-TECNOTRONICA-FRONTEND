@@ -1,8 +1,6 @@
 import { useState, useEffect, Fragment } from "react";
+import { useNavigate } from "react-router-dom";
 import { fetchAuth } from "../utils/fetchAuth";
-import { exportarCotizacionPdf } from "../utils/cotizacionPdf";
-import { exportarCotizacionPdf as exportarCotizacionPdfPepsico } from "../utils/cotizacionPdf3";
-import { exportarCotizacionVenta } from "../utils/cotizacionVenta";
 import {
   calcSubtotal,
   itemVacioVenta,
@@ -10,68 +8,67 @@ import {
   itemVacioPepsico,
   GRUPOS_PEPSICO,
   INP,
-  INP_RO,
 } from "../utils/cotizacionItems";
 import CeldasNumericas from "../components/CeldasNumericas";
+import SelectorEmpresas from "../components/SelectorEmpresas";
+import SelectorCatalogoServicios from "../components/SelectorCatalogoServicios";
+import { FlujoNegocio, TarjetaRelacion, SeccionCotizacion, BuscadorEmpresaTexto } from "../components/detalleShared";
 
 const hoy = () => new Date().toISOString().split("T")[0];
 
-export default function Cotizaciones() {
+const FORM_VACIO = {
+  empresa: "", condicionPago: "", fecha: hoy(), atencion: "", solped: "", referencia: "",
+  modulo: "", tarjeta: "", equipo: "", garantia: "", plazoEntrega: "", validezOferta: "30 días calendario",
+  moneda: "PEN", utilidadPorcentaje: "20", costosAdministrativosPorcentaje: "6", costosFinancierosPorcentaje: "4.5",
+};
+
+// Vista de creación de cotización — mismo shell (header degradado + stepper +
+// panel de Relaciones) que DetalleCotizacion.jsx, para que crear y ver/editar
+// se sientan como la misma pantalla (mismo criterio que SIPAPP-HUAQUIAN).
+// Al guardar con éxito se cierra y vuelve a la lista — no se queda en un
+// modo "solo lectura" post-guardado como antes; para seguir editando (o
+// crear/vincular una OT) se reabre desde la lista, que ya usa
+// DetalleCotizacion.jsx para eso.
+export default function Cotizaciones({ onClose, onCreada }) {
+  const navigate = useNavigate();
+  const cerrar = onClose || (() => navigate("/cotizaciones"));
+  const notificarCreada = onCreada || (() => navigate("/cotizaciones"));
+
   const [empresas, setEmpresas] = useState([]);
   const [tipo, setTipo] = useState("venta");
-  const [form, setForm] = useState({ empresa: "", condicionPago: "", fecha: hoy(), atencion: "", solped: "", referencia: "", modulo: "", tarjeta: "", equipo: "", garantia: "", plazoEntrega: "", validezOferta: "30 días calendario", moneda: "PEN" });
+  const [form, setForm] = useState(FORM_VACIO);
   const [items, setItems] = useState([itemVacioVenta()]);
-  const [guardado, setGuardado] = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
-  const [vienePorOT, setVienePorOT] = useState("");
-  const [otsLista, setOtsLista]     = useState([]);
-  const [otsSel, setOtsSel]         = useState([]);
-  const [cargandoOTs, setCargandoOTs] = useState(false);
+  // Empresa como texto libre además del selector — ver BuscadorEmpresaTexto.
+  const [busquedaEmpresa, setBusquedaEmpresa] = useState("");
+  const [empresasOpen, setEmpresasOpen] = useState(false);
 
-  useEffect(() => {
-    fetchAuth("/empresas").then((r) => r.ok && r.json().then(setEmpresas));
-  }, []);
+  const [catalogoOpen, setCatalogoOpen] = useState(false);
+  const [catalogoTarget, setCatalogoTarget] = useState(null);
 
-  const handleVienePorOT = async (val) => {
-    setVienePorOT(val);
-    setOtsSel([]);
-    if (val === "si" && otsLista.length === 0) {
-      setCargandoOTs(true);
-      const r = await fetchAuth("/ordenes-trabajo");
-      if (r.ok) {
-        const ots = await r.json();
-        setOtsLista(ots.filter((o) => o.ingresoEquipo));
-      }
-      setCargandoOTs(false);
-    }
-  };
+  const cargarEmpresas = () =>
+    fetchAuth("/empresas").then((r) => r.ok && r.json()).then((d) => d && setEmpresas(d));
 
-  const agregarOT = (id) => {
-    const ot = otsLista.find((o) => o._id === id);
-    if (!ot || otsSel.some((o) => o._id === id)) return;
-    const nuevaLista = [...otsSel, ot];
-    setOtsSel(nuevaLista);
-    if (nuevaLista.length === 1) {
-      const ie = ot.ingresoEquipo;
-      setForm((f) => ({
-        ...f,
-        empresa: ot.empresa?._id || "",
-        referencia: ie ? [ie.tipoEquipo, ie.marca, ie.modelo].filter(Boolean).join(" ") : ot.titulo,
-      }));
-    }
-  };
-
-  const quitarOT = (id) => setOtsSel((prev) => prev.filter((o) => o._id !== id));
+  useEffect(() => { cargarEmpresas(); }, []);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const cambiarBusquedaEmpresa = (texto) => {
+    setBusquedaEmpresa(texto);
+    if (form.empresa) setForm((f) => ({ ...f, empresa: "" }));
+  };
+
+  const seleccionarEmpresa = (e) => {
+    setForm((f) => ({ ...f, empresa: e._id }));
+    setBusquedaEmpresa(e.alias ? `${e.alias} — ${e.razonSocial}` : e.razonSocial);
+  };
 
   const cambiarTipo = (t) => {
     setTipo(t);
     setItems(t === "venta" ? [itemVacioVenta()] : [itemVacioServicio()]);
-    if (t !== "servicio") { setVienePorOT(""); setOtsSel([]); }
   };
 
   const handleItem = (key, campo, valor) =>
@@ -111,17 +108,45 @@ export default function Cotizaciones() {
         : i
     ));
 
+  const abrirCatalogo = (targetKey = null) => { setCatalogoTarget(targetKey); setCatalogoOpen(true); };
+  const cerrarCatalogo = () => { setCatalogoOpen(false); setCatalogoTarget(null); };
+
+  const agregarTextosDesdeCatalogo = (grupo, textos) => {
+    const nuevosSubItems = textos.map((texto) => ({ _subKey: Date.now() + Math.random(), texto }));
+    if (catalogoTarget) {
+      setItems((prev) => prev.map((it) =>
+        it._key === catalogoTarget ? { ...it, subItems: [...it.subItems, ...nuevosSubItems] } : it
+      ));
+      cerrarCatalogo();
+      return;
+    }
+    setItems((prev) => {
+      const ultimo = prev[prev.length - 1];
+      if (ultimo && ultimo.descripcion === grupo) {
+        return prev.map((it, i) => (i === prev.length - 1 ? { ...it, subItems: [...it.subItems, ...nuevosSubItems] } : it));
+      }
+      return [...prev, { ...itemVacioServicio(), descripcion: grupo, subItems: nuevosSubItems }];
+    });
+    cerrarCatalogo();
+  };
+  const agregarDesdeCatalogo = (grupo, texto) => agregarTextosDesdeCatalogo(grupo, [texto]);
+  const agregarGrupoCompletoDesdeCatalogo = (grupo, textos) => agregarTextosDesdeCatalogo(grupo, textos);
+
   const baseIIIgrupos = esPepsico
     ? items.filter(i => ["I","II","III"].includes(i.grupo))
         .reduce((s, i) => s + Number(i.cantidad) * Number(i.precio), 0)
     : 0;
 
+  // Reemplaza al viejo "Grupo IV" (tabla libre de ítems con % a mano) — 3
+  // campos fijos (Utilidad/Costos Administrativos/Costos Financieros),
+  // exclusivos de Pepsico, cada uno % de baseIIIgrupos (pedido del usuario,
+  // 2026-09-21).
+  const utilidadMonto             = esPepsico ? baseIIIgrupos * (Number(form.utilidadPorcentaje) || 0) / 100 : 0;
+  const costosAdministrativosMonto = esPepsico ? baseIIIgrupos * (Number(form.costosAdministrativosPorcentaje) || 0) / 100 : 0;
+  const costosFinancierosMonto    = esPepsico ? baseIIIgrupos * (Number(form.costosFinancierosPorcentaje) || 0) / 100 : 0;
+
   const subtotalBruto = esPepsico
-    ? parseFloat((
-        baseIIIgrupos +
-        items.filter(i => i.grupo === "IV")
-          .reduce((s, it) => s + it.cantidad / 100 * baseIIIgrupos, 0)
-      ).toFixed(2))
+    ? parseFloat((baseIIIgrupos + utilidadMonto + costosAdministrativosMonto + costosFinancierosMonto).toFixed(2))
     : parseFloat(items.reduce((acc, i) => acc + calcSubtotal(i), 0).toFixed(2));
 
   const descuentoTotal = esPepsico
@@ -175,19 +200,13 @@ export default function Cotizaciones() {
         igv,
         total,
       };
+      if (!form.empresa && busquedaEmpresa.trim()) body.empresaNombre = busquedaEmpresa.trim();
       if (!body.empresa) delete body.empresa;
       const res = await fetchAuth("/cotizaciones", { method: "POST", body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) return setError(data.mensaje || "Error al guardar");
-      if (otsSel.length > 0) {
-        await Promise.all(otsSel.map((ot) =>
-          fetchAuth(`/ordenes-trabajo/${ot._id}`, {
-            method: "PUT",
-            body: JSON.stringify({ cotizacion: data._id }),
-          })
-        ));
-      }
-      setGuardado(data);
+      notificarCreada(data);
+      cerrar();
     } catch {
       setError("Error de conexión");
     } finally {
@@ -195,579 +214,490 @@ export default function Cotizaciones() {
     }
   };
 
-  const nueva = () => {
-    setTipo("venta");
-    setForm({ empresa: "", condicionPago: "", fecha: hoy(), atencion: "", solped: "", referencia: "", modulo: "", tarjeta: "", equipo: "", garantia: "", plazoEntrega: "", validezOferta: "30 días calendario", moneda: "PEN" });
-    setItems([itemVacioVenta()]);
-    setGuardado(null);
-    setError("");
-    setVienePorOT("");
-    setOtsSel([]);
-  };
-
-  const ro = !!guardado;
+  const pasos = [
+    { tipo: "cotizacion", activo: true, codigo: "Nueva" },
+    { tipo: "ot",         activo: false },
+    { tipo: "informe",    activo: false },
+    { tipo: "oc",         activo: false },
+    { tipo: "factura",    activo: false },
+  ];
 
   return (
-    <div className="p-6 w-[95%] mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">Nueva cotización</h2>
-        {guardado && <span className="font-mono text-sm text-gray-400">{guardado.codigo}</span>}
-      </div>
-
-      {guardado && (
-        <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-3 mb-5">
-          Cotización <strong>{guardado.codigo}</strong> guardada exitosamente.
-        </div>
-      )}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-5">
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={(e) => e.preventDefault()}>
-        {/* Selector de tipo */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 mb-5 flex items-center gap-4">
-          <span className="text-sm font-medium text-gray-500">Tipo de cotización:</span>
-          {["venta", "servicio"].map((t) => (
-            <button
-              key={t} type="button" disabled={ro}
-              onClick={() => cambiarTipo(t)}
-              className={`px-5 py-1.5 rounded-full text-sm font-medium transition ${
-                tipo === t
-                  ? "bg-gray-900 text-white"
-                  : "border border-gray-300 text-gray-500 hover:border-gray-500 hover:text-gray-700"
-              } disabled:cursor-not-allowed`}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
+    <div className="fixed inset-0 z-50 bg-app-bg flex flex-col">
+      {/* Header degradado */}
+      <div className="shrink-0 bg-gradient-to-r from-sky-600 to-cyan-700 text-white">
+        <div className="max-w-6xl mx-auto px-8 py-2.5 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-4">
+            <button onClick={cerrar}
+              className="text-sm text-white/80 hover:text-white transition flex items-center gap-1.5 group shrink-0">
+              <span className="group-hover:-translate-x-0.5 transition">←</span> Cotizaciones
             </button>
-          ))}
-        </div>
-
-        {/* Origen OT — solo para servicio */}
-        {tipo === "servicio" && !ro && (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-4 mb-5 space-y-4">
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-gray-500">¿Viene de una Orden de Trabajo?</span>
-              {["si", "no"].map((v) => (
-                <button
-                  key={v} type="button"
-                  onClick={() => handleVienePorOT(v)}
-                  className={`px-5 py-1.5 rounded-full text-sm font-medium transition ${
-                    vienePorOT === v
-                      ? "bg-gray-900 text-white"
-                      : "border border-gray-300 text-gray-500 hover:border-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {v === "si" ? "Sí" : "No"}
-                </button>
-              ))}
-            </div>
-
-            {vienePorOT === "si" && (
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Agregar Orden de Trabajo</label>
-                  <select
-                    onChange={(e) => { agregarOT(e.target.value); e.target.value = ""; }}
-                    defaultValue=""
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  >
-                    <option value="">— {cargandoOTs ? "Cargando…" : "Seleccionar OT para agregar"} —</option>
-                    {otsLista
-                      .filter((o) => !otsSel.some((s) => s._id === o._id) && !o.ingresoEquipo?.garantia)
-                      .map((o) => (
-                        <option key={o._id} value={o._id}>
-                          {o.codigo} — {o.ingresoEquipo?.tipoEquipo || o.titulo}
-                          {o.ingresoEquipo?.planta ? ` · ${o.ingresoEquipo.planta}` : ""}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                {otsSel.map((ot) => {
-                  const ie = ot.ingresoEquipo;
-                  return (
-                    <div key={ot._id} className="border border-blue-100 bg-blue-50/40 rounded-xl p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
-                          {ot.codigo} · <span className="font-mono">{ie?.codigo}</span>
-                        </p>
-                        <button type="button" onClick={() => quitarOT(ot._id)}
-                          className="text-gray-400 hover:text-red-500 text-sm transition">✕</button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        {ie && (
-                          <>
-                            <div>
-                              <label className="text-xs text-gray-400 block mb-1">Tipo de equipo</label>
-                              <input value={ie.tipoEquipo || "—"} disabled className={`w-full ${INP_RO}`} />
-                            </div>
-                            <div>
-                              <label className="text-xs text-gray-400 block mb-1">Marca / Modelo</label>
-                              <input value={[ie.marca, ie.modelo].filter(Boolean).join(" / ") || "—"} disabled className={`w-full ${INP_RO}`} />
-                            </div>
-                            {ie.planta && (
-                              <div>
-                                <label className="text-xs text-gray-400 block mb-1">Planta</label>
-                                <input value={ie.planta} disabled className={`w-full ${INP_RO}`} />
-                              </div>
-                            )}
-                            {ie.linea && (
-                              <div>
-                                <label className="text-xs text-gray-400 block mb-1">Línea</label>
-                                <input value={ie.linea} disabled className={`w-full ${INP_RO}`} />
-                              </div>
-                            )}
-                            {ie.voltaje && (
-                              <div>
-                                <label className="text-xs text-gray-400 block mb-1">Voltaje</label>
-                                <input value={ie.voltaje} disabled className={`w-full ${INP_RO}`} />
-                              </div>
-                            )}
-                            {ie.potencia && (
-                              <div>
-                                <label className="text-xs text-gray-400 block mb-1">Potencia</label>
-                                <input value={ie.potencia} disabled className={`w-full ${INP_RO}`} />
-                              </div>
-                            )}
-                            {ie.caracteristicasElectricas && (
-                              <div className="col-span-2">
-                                <label className="text-xs text-gray-400 block mb-1">Características eléctricas</label>
-                                <input value={ie.caracteristicasElectricas} disabled className={`w-full ${INP_RO}`} />
-                              </div>
-                            )}
-                            {ie.descripcionProblema && (
-                              <div className="col-span-2">
-                                <label className="text-xs text-gray-400 block mb-1">Descripción del problema</label>
-                                <textarea value={ie.descripcionProblema} disabled rows={2} className={`w-full ${INP_RO} resize-none`} />
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Cabecera */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-5">
-          <div className="grid grid-cols-2 gap-4">
+            <span className="w-px h-8 bg-white/20" />
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Empresa </label>
-              <select name="empresa" value={form.empresa} onChange={handleChange} disabled={ro}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500">
-                <option value="">— Sin empresa —</option>
-                {empresas.map((e) => (
-                  <option key={e._id} value={e._id}>{e.alias} — {e.razonSocial}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Condición de pago</label>
-              <input name="condicionPago" value={form.condicionPago} onChange={handleChange}
-                required disabled={ro}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Fecha</label>
-              <input type="date" name="fecha" value={form.fecha} onChange={handleChange}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Moneda</label>
-              <select name="moneda" value={form.moneda} onChange={handleChange} disabled={ro}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500">
-                <option value="PEN">Soles (PEN)</option>
-                <option value="USD">Dólares (USD)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Atención</label>
-              <input name="atencion" value={form.atencion} onChange={handleChange} disabled={ro}
-                placeholder="Nombre del destinatario"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">SOLPED</label>
-              <input name="solped" value={form.solped} onChange={handleChange} disabled={ro}
-                placeholder="N° SOLPED"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Referencia</label>
-              <input name="referencia" value={form.referencia} onChange={handleChange}
-                required disabled={ro}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500" />
-            </div>
-            {tipo === "venta" && (
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Tiempo de entrega</label>
-                <input name="plazoEntrega" value={form.plazoEntrega} onChange={handleChange} disabled={ro}
-                  placeholder="Ej. 15 días hábiles…"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500" />
-              </div>
-            )}
-            {tipo === "servicio" && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Módulo</label>
-                  <input name="modulo" value={form.modulo} onChange={handleChange} disabled={ro}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Tarjeta</label>
-                  <input name="tarjeta" value={form.tarjeta} onChange={handleChange} disabled={ro}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Equipo</label>
-                  <input name="equipo" value={form.equipo} onChange={handleChange} disabled={ro}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500" />
-                </div>
-              </>
-            )}
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Garantía</label>
-              <input name="garantia" value={form.garantia} onChange={handleChange} disabled={ro}
-                placeholder="Ej. 6 meses, 1 año…"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500" />
+              <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest leading-none">Cotización</p>
+              <h1 className="text-lg font-bold font-mono leading-tight">Nueva cotización</h1>
             </div>
           </div>
-        </div>
-
-        {esPepsico && (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-5">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Plazo de entrega</label>
-                <input name="plazoEntrega" value={form.plazoEntrega} onChange={handleChange} disabled={ro}
-                  placeholder="ej: 30 días después de recibida la OC"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Validez de la oferta</label>
-                <input name="validezOferta" value={form.validezOferta} onChange={handleChange} disabled={ro}
-                  placeholder="ej: 30 días calendario"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tabla */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
-          {esPepsico ? (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-500 text-white text-xs uppercase">
-                    <tr>
-                      <th className="px-3 py-3 text-left">Descripción</th>
-                      <th className="px-3 py-3 text-center">Cantidad</th>
-                      <th className="px-3 py-3 text-center">UM</th>
-                      <th className="px-3 py-3 text-left">P. Unit.</th>
-                      <th className="px-3 py-3 text-right">Importe</th>
-                      {!ro && <th className="px-3 py-3 w-8"></th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {["I","II","III","IV"].flatMap(g => {
-                      const grupoItems = items.filter(i => i.grupo === g);
-                      if (!grupoItems.length) return [];
-                      return [
-                        <tr key={`h-${g}`}>
-                          <td colSpan={ro ? 5 : 6} className="px-3 py-1.5 bg-gray-100 text-xs font-semibold text-gray-600">
-                            {g} — {GRUPOS_PEPSICO[g]}
-                          </td>
-                        </tr>,
-                        ...grupoItems.map(item => {
-                          const esIV = item.grupo === "IV";
-                          const importe = esIV
-                            ? (item.cantidad / 100 * baseIIIgrupos).toFixed(2)
-                            : calcSubtotal(item).toFixed(2);
-                          return (
-                            <tr key={item._key} className="hover:bg-gray-50/50">
-                              <td className="px-3 py-2 align-top w-[62%]">
-                                <textarea value={item.descripcion}
-                                  onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
-                                  required disabled={ro} rows={4}
-                                  className={`w-full resize-y ${ro ? INP_RO : INP}`} />
-                              </td>
-                              <td className="px-3 py-2 align-top">
-                                <input type="number" min="0" step="0.01"
-                                  value={item.cantidad}
-                                  onChange={(e) => handleItem(item._key, "cantidad", parseFloat(e.target.value) || 0)}
-                                  required disabled={ro}
-                                  className={`w-16 text-center ${ro ? INP_RO : INP}`} />
-                              </td>
-                              <td className="px-3 py-2 align-top text-center text-sm text-gray-600">
-                                {esIV ? "%" : (
-                                  <input type="text"
-                                    value={item.unidadMedida}
-                                    onChange={(e) => handleItem(item._key, "unidadMedida", e.target.value)}
-                                    disabled={ro}
-                                    className={`w-14 text-center ${ro ? INP_RO : INP}`}
-                                    placeholder="UN" />
-                                )}
-                              </td>
-                              <td className="px-3 py-2 align-top">
-                                {!esIV && (
-                                  <input type="number" min="0" step="0.01"
-                                    value={item.precio}
-                                    onChange={(e) => handleItem(item._key, "precio", parseFloat(e.target.value) || 0)}
-                                    required disabled={ro}
-                                    className={`w-24 text-right ${ro ? INP_RO : INP}`} />
-                                )}
-                              </td>
-                              <td className="px-3 py-2 align-top text-right font-medium text-gray-700">
-                                {importe}
-                              </td>
-                              {!ro && (
-                                <td className="px-3 py-2 align-top text-center">
-                                  <button type="button" onClick={() => eliminarItem(item._key)} className="text-red-400 hover:text-red-600">✕</button>
-                                </td>
-                              )}
-                            </tr>
-                          );
-                        }),
-                      ];
-                    })}
-                  </tbody>
-                  <tfoot className="border-t-2 border-gray-200 bg-gray-50">
-                    <tr>
-                      <td colSpan={4} className="px-4 py-2 text-right text-xs text-gray-500">Subtotal</td>
-                      <td className="px-3 py-2 text-right font-medium">{subtotalGeneral.toFixed(2)}</td>
-                      {!ro && <td />}
-                    </tr>
-                    <tr>
-                      <td colSpan={4} className="px-4 py-2 text-right text-xs text-gray-500">IGV 18%</td>
-                      <td className="px-3 py-2 text-right font-medium">{igv.toFixed(2)}</td>
-                      {!ro && <td />}
-                    </tr>
-                    <tr>
-                      <td colSpan={4} className="px-4 py-2 text-right text-sm font-semibold text-gray-800">Total</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900 text-base">{total.toFixed(2)}</td>
-                      {!ro && <td />}
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-              {!ro && (
-                <div className="px-4 py-3 border-t border-gray-100 flex flex-wrap gap-2">
-                  {["I","II","III","IV"].map(g => (
-                    <button key={g} type="button" onClick={() => agregarItemPepsico(g)}
-                      className="text-xs text-gray-500 border border-gray-200 hover:border-gray-400 hover:text-gray-800 px-3 py-1.5 rounded-lg transition">
-                      + {GRUPOS_PEPSICO[g]}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-500 text-white text-xs uppercase">
-                    <tr>
-                      <th className="px-3 py-3 text-center w-8">#</th>
-                      <th className="px-3 py-3 text-left">
-                        {tipo === "servicio" ? "Título / Descripciones" : "Descripción"}
-                      </th>
-                      <th className="px-3 py-3 text-left">Cantidad</th>
-                      {tipo === "servicio" && <th className="px-3 py-3 text-left">T. entrega</th>}
-                      <th className="px-3 py-3 text-left">Precio</th>
-                      <th className="px-3 py-3 text-center">Moneda</th>
-                      {tipo === "servicio" && <th className="px-3 py-3 text-center">Desc. %</th>}
-                      <th className="px-3 py-3 text-right">Subtotal</th>
-                      {!ro && <th className="px-3 py-3 w-8"></th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {tipo === "venta"
-                      ? items.map((item, idx) => (
-                          <tr key={item._key} className="hover:bg-gray-50/50">
-                            <td className="px-3 py-2 text-center text-gray-400 align-top pt-3">{idx + 1}</td>
-                            <td className="px-3 py-2 align-top w-[60%]">
-                              <textarea value={item.descripcion}
-                                onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
-                                required disabled={ro} rows={2}
-                                className={`w-full resize-y ${ro ? "bg-transparent border-transparent text-sm px-2 py-1" : INP}`} />
-                            </td>
-                            <CeldasNumericas item={item} ro={ro} onUpdate={handleItem} showFechaEntrega={false} />
-                            <td className="px-3 py-2 text-right font-medium text-gray-700 align-top pt-3">
-                              {calcSubtotal(item).toFixed(2)}
-                            </td>
-                            {!ro && (
-                              <td className="px-3 py-2 text-center align-top pt-2.5">
-                                <button type="button" onClick={() => eliminarItem(item._key)} className="text-red-400 hover:text-red-600">✕</button>
-                              </td>
-                            )}
-                          </tr>
-                        ))
-                      : items.map((item, idx) => (
-                          <Fragment key={item._key}>
-                            <tr className="hover:bg-gray-50/50">
-                              <td className="px-3 py-2 text-center text-gray-400 align-top pt-3">{idx + 1}</td>
-                              <td className="px-3 py-2 align-top w-[60%]">
-                                <textarea value={item.descripcion}
-                                  onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
-                                  required disabled={ro} placeholder="Título del servicio" rows={4}
-                                  className={`w-full resize-y font-medium ${ro ? "bg-transparent border-transparent text-sm px-2 py-1" : INP}`} />
-                              </td>
-                              <CeldasNumericas item={item} ro={ro} onUpdate={handleItem} />
-                              <td className="px-3 py-2 text-center align-middle">
-                                <input type="number" min="0" max="100" step="0.01"
-                                  value={item.descuento || 0}
-                                  onChange={(e) => handleItem(item._key, "descuento", parseFloat(e.target.value) || 0)}
-                                  disabled={ro}
-                                  className={`w-16 text-center ${ro ? INP_RO : INP}`} />
-                              </td>
-                              <td className="px-3 py-2 text-right font-medium text-gray-700 align-middle">
-                                {(calcSubtotal(item) * (1 - (item.descuento || 0) / 100)).toFixed(2)}
-                              </td>
-                              {!ro && (
-                                <td className="px-3 py-2 text-center align-top pt-2.5">
-                                  <button type="button" onClick={() => eliminarItem(item._key)} className="text-red-400 hover:text-red-600">✕</button>
-                                </td>
-                              )}
-                            </tr>
-                            {item.subItems.map((sub) => (
-                              <tr key={sub._subKey} className="bg-gray-50/40">
-                                <td></td>
-                                <td className="px-3 py-1 pl-9">
-                                  {ro ? (
-                                    <span className="text-gray-500 text-sm">• {sub.texto}</span>
-                                  ) : (
-                                    <div className="flex items-start gap-2">
-                                      <span className="text-gray-300 select-none text-xs mt-1.5">•</span>
-                                      <textarea value={sub.texto}
-                                        onChange={(e) => handleSubItem(item._key, sub._subKey, e.target.value)}
-                                        placeholder="Descripción del trabajo" rows={3}
-                                        className="flex-1 resize-y border border-gray-200 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-gray-300" />
-                                      <button type="button" onClick={() => eliminarSubItem(item._key, sub._subKey)}
-                                        className="text-red-300 hover:text-red-500 text-xs shrink-0 mt-1">✕</button>
-                                    </div>
-                                  )}
-                                </td>
-                                <td colSpan={ro ? 7 : 8}></td>
-                              </tr>
-                            ))}
-                            {!ro && (
-                              <tr className="bg-gray-50/40">
-                                <td></td>
-                                <td className="px-3 py-1.5 pl-9">
-                                  <button type="button" onClick={() => agregarSubItem(item._key)}
-                                    className="text-xs text-gray-400 hover:text-gray-700 transition">
-                                    + agregar descripción
-                                  </button>
-                                </td>
-                                <td colSpan={tipo === "venta" ? 5 : 8}></td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        ))}
-                  </tbody>
-                  <tfoot className="border-t-2 border-gray-200 bg-gray-50">
-                    <tr>
-                      <td colSpan={tipo === "venta" ? 5 : 8} className="px-4 py-2 text-right text-xs text-gray-500">Subtotal</td>
-                      <td className="px-3 py-2 text-right font-medium">{subtotalBruto.toFixed(2)}</td>
-                      {!ro && <td />}
-                    </tr>
-                    {descuentoTotal > 0 && <>
-                      <tr>
-                        <td colSpan={tipo === "venta" ? 5 : 8} className="px-4 py-2 text-right text-xs text-red-400">Descuento</td>
-                        <td className="px-3 py-2 text-right font-medium text-red-500">- {descuentoTotal.toFixed(2)}</td>
-                        {!ro && <td />}
-                      </tr>
-                      <tr>
-                        <td colSpan={tipo === "venta" ? 5 : 8} className="px-4 py-2 text-right text-xs text-gray-500">Total sin IGV</td>
-                        <td className="px-3 py-2 text-right font-medium">{subtotalGeneral.toFixed(2)}</td>
-                        {!ro && <td />}
-                      </tr>
-                    </>}
-                    <tr>
-                      <td colSpan={tipo === "venta" ? 5 : 8} className="px-4 py-2 text-right text-xs text-gray-500">IGV 18%</td>
-                      <td className="px-3 py-2 text-right font-medium">{igv.toFixed(2)}</td>
-                      {!ro && <td />}
-                    </tr>
-                    <tr>
-                      <td colSpan={tipo === "venta" ? 5 : 8} className="px-4 py-2 text-right text-sm font-semibold text-gray-800">Total con IGV</td>
-                      <td className="px-3 py-2 text-right font-bold text-gray-900 text-base">{total.toFixed(2)}</td>
-                      {!ro && <td />}
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-              {!ro && (
-                <div className="px-4 py-3 border-t border-gray-100">
-                  <button type="button" onClick={agregarItem}
-                    className="text-sm text-gray-500 hover:text-gray-800 transition">
-                    + Agregar ítem
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Acciones */}
-        <div className="flex justify-end gap-3">
-          {!guardado ? (
-            <button type="button" onClick={() => {
+          <div className="flex items-center gap-2 flex-wrap">
+            <button onClick={() => {
                 const err = validar();
                 if (err) { setError(err); return; }
                 setError("");
                 setConfirmando(true);
               }}
-              className="bg-gray-900 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition">
-              Guardar cotización
+              disabled={cargando}
+              className="bg-white text-sky-700 text-sm px-5 py-2 rounded-lg hover:bg-sky-50 disabled:opacity-60 transition font-semibold shadow-sm shrink-0">
+              {cargando ? "Guardando…" : "Crear cotización"}
             </button>
-          ) : (
-            <>
-              <button type="button" onClick={() => {
-                  const cotParaPdf = { ...guardado, empresa: empresaSel || guardado.empresa };
-                  const ieParaPdf = otsSel.length > 0 ? otsSel[0].ingresoEquipo : null;
-                  if (esPepsico) exportarCotizacionPdfPepsico(cotParaPdf, ieParaPdf);
-                  else if (tipo === "venta") exportarCotizacionVenta(cotParaPdf, ieParaPdf);
-                  else exportarCotizacionPdf(cotParaPdf, ieParaPdf);
-                }}
-                className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition">
-                Exportar PDF
-              </button>
-              <button type="button" onClick={nueva}
-                className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700 transition">
-                Nueva cotización
-              </button>
-            </>
-          )}
+          </div>
         </div>
-      </form>
+      </div>
+
+      {/* Stepper de flujo */}
+      <div className="shrink-0 bg-surface border-b border-line shadow-sm">
+        <div className="max-w-4xl mx-auto px-8 py-5">
+          <FlujoNegocio pasos={pasos} />
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto">
+        <form onSubmit={(e) => e.preventDefault()} className="max-w-6xl mx-auto px-8 py-8 space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+
+            {/* Formulario editable */}
+            <div className="lg:col-span-2 space-y-6">
+
+              {/* Datos del cliente */}
+              <SeccionCotizacion titulo="Datos del cliente" color="bg-blue-500">
+                <div>
+                  <label className="block text-xs text-ink-muted mb-1">Empresa</label>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <BuscadorEmpresaTexto
+                        empresas={empresas}
+                        texto={busquedaEmpresa}
+                        empresaId={form.empresa}
+                        onTexto={cambiarBusquedaEmpresa}
+                        onSeleccionar={seleccionarEmpresa}
+                      />
+                    </div>
+                    <button type="button" onClick={() => setEmpresasOpen(true)}
+                      className="shrink-0 text-xs border border-line-strong px-3 rounded-lg hover:bg-surface-hover transition">
+                      Empresas
+                    </button>
+                  </div>
+                </div>
+              </SeccionCotizacion>
+
+              {/* Detalle de cotización */}
+              <SeccionCotizacion titulo="Detalle de cotización" color="bg-sky-500">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">Condición de pago</label>
+                    <input name="condicionPago" value={form.condicionPago} onChange={handleChange}
+                      required className={`w-full ${INP}`} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">Fecha</label>
+                    <input type="date" name="fecha" value={form.fecha} onChange={handleChange} className={`w-full ${INP}`} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">Moneda</label>
+                    <select name="moneda" value={form.moneda} onChange={handleChange} className={`w-full ${INP}`}>
+                      <option value="PEN">Soles (PEN)</option>
+                      <option value="USD">Dólares (USD)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">Atención</label>
+                    <input name="atencion" value={form.atencion} onChange={handleChange}
+                      placeholder="Nombre del destinatario" className={`w-full ${INP}`} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">N° de solicitud de pedido (SOLPED)</label>
+                    <input name="solped" value={form.solped} onChange={handleChange}
+                      placeholder="N° SOLPED" className={`w-full ${INP}`} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">Referencia</label>
+                    <input name="referencia" value={form.referencia} onChange={handleChange}
+                      required className={`w-full ${INP}`} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">Tiempo de entrega</label>
+                    <input name="plazoEntrega" value={form.plazoEntrega} onChange={handleChange}
+                      placeholder="Ej. 15 días hábiles…" className={`w-full ${INP}`} />
+                  </div>
+                  {esPepsico && (
+                    <div>
+                      <label className="block text-xs text-ink-muted mb-1">Validez de la oferta</label>
+                      <input name="validezOferta" value={form.validezOferta} onChange={handleChange}
+                        placeholder="ej: 30 días calendario" className={`w-full ${INP}`} />
+                    </div>
+                  )}
+                </div>
+              </SeccionCotizacion>
+
+              <SeccionCotizacion titulo="Otros datos" color="bg-gray-400">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">Tipo</label>
+                    <select value={tipo} onChange={(e) => cambiarTipo(e.target.value)} className={`w-full ${INP}`}>
+                      <option value="venta">Venta</option>
+                      <option value="servicio">Servicio</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">Módulo</label>
+                    <input name="modulo" value={form.modulo} onChange={handleChange} className={`w-full ${INP}`} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">Tarjeta</label>
+                    <input name="tarjeta" value={form.tarjeta} onChange={handleChange} className={`w-full ${INP}`} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-muted mb-1">Equipo</label>
+                    <input name="equipo" value={form.equipo} onChange={handleChange} className={`w-full ${INP}`} />
+                  </div>
+                </div>
+              </SeccionCotizacion>
+
+              <SeccionCotizacion titulo="Términos y condiciones" color="bg-amber-500">
+                <div>
+                  <label className="block text-xs text-ink-muted mb-1">Tiempo de garantía</label>
+                  <input name="garantia" value={form.garantia} onChange={handleChange}
+                    placeholder="Ej. 6 meses, 1 año…" className={`w-full ${INP}`} />
+                </div>
+              </SeccionCotizacion>
+
+              {error && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>
+              )}
+            </div>
+
+            {/* Relaciones */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-5 rounded-full bg-cyan-500" />
+                <h2 className="text-sm font-bold text-ink uppercase tracking-wide">Relaciones</h2>
+              </div>
+
+              <TarjetaRelacion tipo="cotizacion" codigo="Nueva" actual>
+                <p className="text-sm text-ink-soft line-clamp-2">{form.referencia || "—"}</p>
+              </TarjetaRelacion>
+              <TarjetaRelacion tipo="ot" vacio />
+              <TarjetaRelacion tipo="informe" vacio />
+              <TarjetaRelacion tipo="oc" vacio />
+              <TarjetaRelacion tipo="factura" vacio />
+            </section>
+          </div>
+
+          {/* Ítems — card aparte, 80vw (se sale del max-w-6xl del form) para que las columnas respiren */}
+          <div className="w-[80vw] max-w-[80vw] relative left-1/2 -translate-x-1/2 bg-surface rounded-2xl border border-line shadow-sm p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="w-1.5 h-5 rounded-full bg-sky-500" />
+              <h2 className="text-sm font-bold text-ink uppercase tracking-wide">Ítems</h2>
+            </div>
+
+            <div className="overflow-x-auto">
+              {esPepsico ? (
+                <table className="w-full text-sm min-w-[900px]">
+                  <thead className="bg-surface-alt text-ink-muted text-xs">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Descripción</th>
+                      <th className="px-3 py-2 text-center">Cant.</th>
+                      <th className="px-3 py-2 text-center">UM</th>
+                      <th className="px-3 py-2 text-right">P. Unit.</th>
+                      <th className="px-3 py-2 text-right">Importe</th>
+                      <th className="px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {["I","II","III"].flatMap(g => {
+                      const grupoItems = items.filter(i => i.grupo === g);
+                      if (!grupoItems.length) return [];
+                      return [
+                        <tr key={`h-${g}`}>
+                          <td colSpan={6} className="px-3 py-1.5 bg-surface-hover text-xs font-semibold text-ink-soft">
+                            {g} — {GRUPOS_PEPSICO[g]}
+                          </td>
+                        </tr>,
+                        ...grupoItems.map(item => {
+                          const importe = calcSubtotal(item).toFixed(2);
+                          return (
+                            <tr key={item._key}>
+                              <td className="px-3 py-2 align-top w-[72%]">
+                                <textarea value={item.descripcion}
+                                  onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
+                                  required rows={6}
+                                  className={`w-full resize-y ${INP}`} />
+                              </td>
+                              <td className="px-3 py-2 align-top">
+                                <input type="number" min="0" step="0.01"
+                                  value={item.cantidad}
+                                  onChange={(e) => handleItem(item._key, "cantidad", parseFloat(e.target.value) || 0)}
+                                  required className={`w-16 text-center ${INP}`} />
+                              </td>
+                              <td className="px-3 py-2 align-top text-center text-sm text-ink-soft">
+                                <input type="text"
+                                  value={item.unidadMedida}
+                                  onChange={(e) => handleItem(item._key, "unidadMedida", e.target.value)}
+                                  className={`w-14 text-center ${INP}`}
+                                  placeholder="UN" />
+                              </td>
+                              <td className="px-3 py-2 align-top">
+                                <input type="number" min="0" step="0.01"
+                                  value={item.precio}
+                                  onChange={(e) => handleItem(item._key, "precio", parseFloat(e.target.value) || 0)}
+                                  required className={`w-24 text-right ${INP}`} />
+                              </td>
+                              <td className="px-3 py-2 align-top text-right font-medium text-ink-soft">
+                                {importe}
+                              </td>
+                              <td className="px-3 py-2 align-top">
+                                <button type="button" onClick={() => eliminarItem(item._key)} className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
+                              </td>
+                            </tr>
+                          );
+                        }),
+                      ];
+                    })}
+                    {/* IV — Utilidad + gastos administrativos: 3 filas fijas (no editables en
+                        descripción ni eliminables), % en la columna Cant., importe calculado
+                        sobre baseIIIgrupos en vez de leído de un ítem. */}
+                    <tr>
+                      <td colSpan={6} className="px-3 py-1.5 bg-surface-hover text-xs font-semibold text-ink-soft">
+                        IV — Utilidad + gastos administrativos
+                      </td>
+                    </tr>
+                    {[
+                      { label: "Utilidad", name: "utilidadPorcentaje", monto: utilidadMonto },
+                      { label: "Costos Administrativos", name: "costosAdministrativosPorcentaje", monto: costosAdministrativosMonto },
+                      { label: "Costos Financieros", name: "costosFinancierosPorcentaje", monto: costosFinancierosMonto },
+                    ].map((campo) => (
+                      <tr key={campo.name}>
+                        <td className="px-3 py-2 align-top w-[72%] text-ink">{campo.label}</td>
+                        <td className="px-3 py-2 align-top">
+                          <input type="number" min="0" step="0.1" name={campo.name}
+                            value={form[campo.name]} onChange={handleChange}
+                            className={`w-16 text-center ${INP}`} />
+                        </td>
+                        <td className="px-3 py-2 align-top text-center text-sm text-ink-soft">%</td>
+                        <td className="px-3 py-2 align-top text-center text-ink-muted">—</td>
+                        <td className="px-3 py-2 align-top text-right font-medium text-ink-soft">{campo.monto.toFixed(2)}</td>
+                        <td className="px-3 py-2 align-top"></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t-2 border-line bg-surface-alt">
+                    <tr>
+                      <td colSpan={4} className="px-4 py-2 text-right text-xs text-ink-muted">Subtotal</td>
+                      <td className="px-3 py-2 text-right font-medium">{subtotalGeneral.toFixed(2)}</td>
+                      <td />
+                    </tr>
+                    <tr>
+                      <td colSpan={4} className="px-4 py-2 text-right text-xs text-ink-muted">IGV 18%</td>
+                      <td className="px-3 py-2 text-right font-medium">{igv.toFixed(2)}</td>
+                      <td />
+                    </tr>
+                    <tr>
+                      <td colSpan={4} className="px-4 py-2 text-right text-sm font-semibold text-ink">Total</td>
+                      <td className="px-3 py-2 text-right font-bold text-ink text-base">{total.toFixed(2)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              ) : (
+                <table className="w-full text-sm min-w-[1000px]">
+                  <thead className="bg-surface-alt text-ink-muted text-xs">
+                    <tr>
+                      <th className="px-3 py-2 text-center w-8">#</th>
+                      <th className="px-3 py-2 text-left">
+                        {tipo === "servicio" ? "Título / Descripciones" : "Descripción"}
+                      </th>
+                      <th className="px-3 py-2 text-left">Cantidad</th>
+                      {tipo === "servicio" && <th className="px-3 py-2 text-left">T. entrega</th>}
+                      <th className="px-3 py-2 text-left">Precio</th>
+                      {tipo === "servicio" && <th className="px-3 py-2 text-center">Desc. %</th>}
+                      <th className="px-3 py-2 text-right">Subtotal</th>
+                      <th className="px-3 py-2 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {tipo === "venta"
+                      ? items.map((item, idx) => (
+                          <tr key={item._key}>
+                            <td className="px-3 py-2 text-center text-ink-muted align-top pt-3">{idx + 1}</td>
+                            <td className="px-3 py-2 align-top w-[60%]">
+                              <textarea value={item.descripcion}
+                                onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
+                                required rows={2}
+                                className={`w-full resize-y ${INP}`} />
+                            </td>
+                            <CeldasNumericas item={item} ro={false} onUpdate={handleItem} showFechaEntrega={false} />
+                            <td className="px-3 py-2 text-right font-medium text-ink-soft align-top pt-3">
+                              {calcSubtotal(item).toFixed(2)}
+                            </td>
+                            <td className="px-3 py-2 text-center align-top pt-2.5">
+                              <button type="button" onClick={() => eliminarItem(item._key)} className="text-red-400 hover:text-red-600">✕</button>
+                            </td>
+                          </tr>
+                        ))
+                      : items.map((item, idx) => (
+                          <Fragment key={item._key}>
+                            <tr>
+                              <td className="px-3 py-2 text-center text-ink-muted align-top pt-3">{idx + 1}</td>
+                              <td className="px-3 py-2 align-top w-[60%]">
+                                <textarea value={item.descripcion}
+                                  onChange={(e) => handleItem(item._key, "descripcion", e.target.value)}
+                                  required placeholder="Título del servicio" rows={4}
+                                  className={`w-full resize-y font-medium ${INP}`} />
+                              </td>
+                              <CeldasNumericas item={item} ro={false} onUpdate={handleItem} />
+                              <td className="px-3 py-2 text-center align-middle">
+                                <input type="number" min="0" max="100" step="0.01"
+                                  value={item.descuento || 0}
+                                  onChange={(e) => handleItem(item._key, "descuento", parseFloat(e.target.value) || 0)}
+                                  className={`w-16 text-center ${INP}`} />
+                              </td>
+                              <td className="px-3 py-2 text-right font-medium text-ink-soft align-middle">
+                                {(calcSubtotal(item) * (1 - (item.descuento || 0) / 100)).toFixed(2)}
+                              </td>
+                              <td className="px-3 py-2 text-center align-top pt-2.5">
+                                <button type="button" onClick={() => eliminarItem(item._key)} className="text-red-400 hover:text-red-600">✕</button>
+                              </td>
+                            </tr>
+                            {item.subItems.map((sub) => (
+                              <tr key={sub._subKey} className="bg-surface-alt/40">
+                                <td></td>
+                                <td className="px-3 py-1 pl-9">
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-ink-muted select-none text-xs mt-1.5">•</span>
+                                    <textarea value={sub.texto}
+                                      onChange={(e) => handleSubItem(item._key, sub._subKey, e.target.value)}
+                                      placeholder="Descripción del trabajo" rows={3}
+                                      className={`flex-1 resize-y ${INP} text-sm`} />
+                                    <button type="button" onClick={() => eliminarSubItem(item._key, sub._subKey)}
+                                      className="text-red-300 hover:text-red-500 text-xs shrink-0 mt-1">✕</button>
+                                  </div>
+                                </td>
+                                <td colSpan={6}></td>
+                              </tr>
+                            ))}
+                            <tr className="bg-surface-alt/40">
+                              <td></td>
+                              <td className="px-3 py-1.5 pl-9 flex items-center gap-3">
+                                <button type="button" onClick={() => agregarSubItem(item._key)}
+                                  className="text-xs text-ink-muted hover:text-ink transition">
+                                  + agregar descripción
+                                </button>
+                                <button type="button" onClick={() => abrirCatalogo(item._key)}
+                                  className="text-xs text-ink-muted hover:text-accent transition">
+                                  + elegir del catálogo
+                                </button>
+                              </td>
+                              <td colSpan={tipo === "venta" ? 4 : 6}></td>
+                            </tr>
+                          </Fragment>
+                        ))}
+                  </tbody>
+                  <tfoot className="border-t-2 border-line bg-surface-alt">
+                    <tr>
+                      <td colSpan={tipo === "venta" ? 4 : 6} className="px-4 py-2 text-right text-xs text-ink-muted">Subtotal</td>
+                      <td className="px-3 py-2 text-right font-medium">{subtotalBruto.toFixed(2)}</td>
+                      <td />
+                    </tr>
+                    {descuentoTotal > 0 && <>
+                      <tr>
+                        <td colSpan={tipo === "venta" ? 4 : 6} className="px-4 py-2 text-right text-xs text-red-400">Descuento</td>
+                        <td className="px-3 py-2 text-right font-medium text-red-500">- {descuentoTotal.toFixed(2)}</td>
+                        <td />
+                      </tr>
+                      <tr>
+                        <td colSpan={tipo === "venta" ? 4 : 6} className="px-4 py-2 text-right text-xs text-ink-muted">Total sin IGV</td>
+                        <td className="px-3 py-2 text-right font-medium">{subtotalGeneral.toFixed(2)}</td>
+                        <td />
+                      </tr>
+                    </>}
+                    <tr>
+                      <td colSpan={tipo === "venta" ? 4 : 6} className="px-4 py-2 text-right text-xs text-ink-muted">IGV 18%</td>
+                      <td className="px-3 py-2 text-right font-medium">{igv.toFixed(2)}</td>
+                      <td />
+                    </tr>
+                    <tr>
+                      <td colSpan={tipo === "venta" ? 4 : 6} className="px-4 py-2 text-right text-sm font-semibold text-ink">Total con IGV</td>
+                      <td className="px-3 py-2 text-right font-bold text-ink text-base">{total.toFixed(2)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+
+            {esPepsico ? (
+              <div className="flex gap-2 flex-wrap">
+                {["I","II","III"].map(g => (
+                  <button key={g} type="button" onClick={() => agregarItemPepsico(g)}
+                    className="text-xs text-ink-soft border border-line-strong hover:border-ink-muted hover:text-ink px-3 py-1.5 rounded-lg transition">
+                    + {GRUPOS_PEPSICO[g]}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <button type="button" onClick={agregarItem}
+                  className="text-sm text-ink-soft hover:text-ink transition">
+                  + Agregar ítem
+                </button>
+                {tipo === "servicio" && (
+                  <button type="button" onClick={() => abrirCatalogo()}
+                    className="text-sm text-accent hover:text-accent-strong transition">
+                    + Agregar ítem de plantilla
+                  </button>
+                )}
+              </div>
+            )}
+
+            {catalogoOpen && (
+              <SelectorCatalogoServicios
+                onSeleccionar={agregarDesdeCatalogo}
+                onSeleccionarGrupo={agregarGrupoCompletoDesdeCatalogo}
+                onClose={cerrarCatalogo}
+              />
+            )}
+          </div>
+        </form>
+      </div>
 
       {confirmando && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
-            <h3 className="font-semibold text-gray-800 mb-2">¿Guardar cotización?</h3>
-            <p className="text-sm text-gray-500 mb-6">
-              Una vez guardada, los datos no podrán editarse desde esta vista.
-            </p>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-surface rounded-xl p-6 shadow-2xl w-80">
+            <p className="text-sm text-ink mb-4">¿Crear esta cotización?</p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setConfirmando(false)}
-                className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition">
-                Cancelar
-              </button>
-              <button onClick={async () => { setCargando(true); setConfirmando(false); await guardar(); }}
-                disabled={cargando}
-                className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700 transition disabled:opacity-50">
-                {cargando ? "Guardando..." : "Confirmar y guardar"}
+              <button type="button" onClick={() => setConfirmando(false)} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={guardar} disabled={cargando}
+                className="text-sm px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 transition">
+                {cargando ? "Guardando…" : "Confirmar"}
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {empresasOpen && (
+        <SelectorEmpresas
+          empresas={empresas}
+          onClose={() => setEmpresasOpen(false)}
+          onSeleccionar={(e) => {
+            seleccionarEmpresa(e);
+            setEmpresasOpen(false);
+          }}
+          onCambio={async (guardada, { esNueva }) => {
+            await cargarEmpresas();
+            if (esNueva) seleccionarEmpresa(guardada);
+          }}
+        />
       )}
     </div>
   );

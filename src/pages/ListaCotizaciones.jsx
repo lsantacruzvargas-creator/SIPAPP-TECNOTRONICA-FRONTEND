@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { fetchAuth } from "../utils/fetchAuth";
 import DetalleDocumento from "../components/DetalleDocumento";
+import Cotizaciones from "./Cotizaciones";
 import * as XLSX from "xlsx";
 
 const MESES = [
@@ -50,7 +51,6 @@ const badgeEstadoCot = (estado) => {
 };
 
 export default function ListaCotizaciones() {
-  const navigate = useNavigate();
   const location = useLocation();
   const [cotizaciones, setCotizaciones] = useState([]);
   const [filtros, setFiltros] = useState({
@@ -59,6 +59,7 @@ export default function ListaCotizaciones() {
     empresa: location.state?.filtroEmpresa || "",
   });
   const [seleccionada, setSeleccionada] = useState(null);
+  const [nuevaAbierta, setNuevaAbierta] = useState(false);
   const [otsPorCot, setOtsPorCot] = useState(new Map());
   const [ocPorCot, setOcPorCot] = useState(new Map());
   const [tipoCambio, setTipoCambio] = useState(null);
@@ -130,6 +131,7 @@ export default function ListaCotizaciones() {
       (!filtros.oc  || (filtros.oc === "con" ? ocPorCot.has(c._id) : !ocPorCot.has(c._id))) &&
       (!q ||
         c.codigo?.toLowerCase().includes(q) ||
+        c.numeroCotizacion?.toLowerCase().includes(q) ||
         c.titulo?.toLowerCase().includes(q) ||
         c.empresa?.razonSocial?.toLowerCase().includes(q) ||
         c.empresa?.ruc?.includes(q))
@@ -141,7 +143,7 @@ export default function ListaCotizaciones() {
       const codigos = codigosOTs(otsPorCot.get(c._id));
       const oc      = ocPorCot.get(c._id);
       return {
-        "Código":              c.codigo,
+        "N° Presupuesto":      c.numeroCotizacion || c.codigo,
         "Tipo":                c.tipo,
         "N° OT":               codigos || "—",
         "Empresa":             c.empresa ? `${c.empresa.alias} — ${c.empresa.razonSocial}` : "",
@@ -174,7 +176,7 @@ export default function ListaCotizaciones() {
             Exportar Excel
           </button>
           <button
-            onClick={() => navigate("/cotizaciones/nueva")}
+            onClick={() => setNuevaAbierta(true)}
             className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700 transition"
           >
             + Nueva cotización
@@ -254,7 +256,7 @@ export default function ListaCotizaciones() {
         <table className="w-full text-sm min-w-[600px]">
           <thead className="bg-gray-500 text-white text-xs uppercase">
             <tr>
-              <th className="px-4 py-3 text-left">Código</th>
+              <th className="px-4 py-3 text-left">N° Presupuesto</th>
               <th className="px-4 py-3 text-left">Tipo</th>
               <th className="px-4 py-3 text-center">N° OT</th>
               <th className="px-4 py-3 text-left">Empresa</th>
@@ -311,7 +313,7 @@ export default function ListaCotizaciones() {
 
                 return (
                   <tr key={c._id} className={rowCls} onClick={() => setSeleccionada(c)}>
-                    <td className={`px-4 py-3 font-mono text-sm text-black ${tdCls}`}>{c.codigo}</td>
+                    <td className={`px-4 py-3 font-mono text-sm text-black ${tdCls}`}>{c.numeroCotizacion || c.codigo}</td>
                     <td className="px-4 py-3">{tipoBadge}</td>
                     <td className={`px-4 py-3 text-center font-mono text-xs text-emerald-700 ${tdCls}`}>
                       {otsCodigos || <span className="text-gray-300">—</span>}
@@ -364,6 +366,13 @@ export default function ListaCotizaciones() {
           fetchAuth("/ordenes-trabajo").then((r) => r.ok && r.json())
             .then((ots) => { if (ots) setOtsPorCot(buildOtsMap(ots)); });
         }}
+      />
+    )}
+
+    {nuevaAbierta && (
+      <Cotizaciones
+        onClose={() => setNuevaAbierta(false)}
+        onCreada={() => { setNuevaAbierta(false); cargar(); }}
       />
     )}
     </>

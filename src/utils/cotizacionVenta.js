@@ -120,18 +120,17 @@ export const exportarCotizacionVenta = (cotizacion, ingresoEquipo = null) => {
 
   autoTable(doc, {
     startY: y,
-    head: [["#", "Descripción", "Cantidad", "Precio", "Moneda", "Subtotal"]],
+    head: [["#", "Descripción", "Cantidad", "Precio", "Subtotal"]],
     body: cotizacion.items.map((item, i) => [
       i + 1,
       item.descripcion,
       item.cantidad,
       Number(item.precio).toFixed(2),
-      item.moneda === "PEN" ? "S/" : "$",
       Number(item.subtotal).toFixed(2),
     ]),
     foot: [
       [
-        { content: "", colSpan: 3, styles: { fillColor: [245, 245, 245] } },
+        { content: "", colSpan: 2, styles: { fillColor: [245, 245, 245] } },
         { content: "Subtotal:", colSpan: 2, styles: { fontStyle: "bold", halign: "right", fillColor: [245, 245, 245], textColor: [0, 0, 0] } },
         { content: Number(cotizacion.subtotal).toFixed(2), styles: { fontStyle: "bold", halign: "right", fillColor: [245, 245, 245], textColor: [0, 0, 0] } },
       ],
@@ -150,11 +149,10 @@ export const exportarCotizacionVenta = (cotizacion, ingresoEquipo = null) => {
     headStyles: { fillColor: [80, 80, 80], textColor: [255, 255, 255], fontStyle: "bold" },
     columnStyles: {
       0: { cellWidth: 8, halign: "center" },
-      1: { cellWidth: 100 },
+      1: { cellWidth: 114 },
       2: { cellWidth: 18, halign: "center" },
       3: { cellWidth: 22, halign: "right" },
-      4: { cellWidth: 14, halign: "center" },
-      5: { cellWidth: 24, halign: "right" },
+      4: { cellWidth: 24, halign: "right" },
     },
   });
 
@@ -163,7 +161,7 @@ export const exportarCotizacionVenta = (cotizacion, ingresoEquipo = null) => {
   const cellY = (ry) => ry - 4;
   const rowH = 6;
   y += 8;
-  const moneda = cotizacion.items[0]?.moneda ?? "PEN";
+  const moneda = cotizacion.moneda ?? "PEN";
   const simbolo = moneda === "PEN" ? "S/" : "$";
   const _bruto = cotizacion.items.reduce((s, i) => s + (Number(i.descuento) > 0 ? Number(i.cantidad) * Number(i.precio) : Number(i.subtotal)), 0);
   const _descMonto = parseFloat((_bruto - Number(cotizacion.subtotal)).toFixed(2));

@@ -169,6 +169,62 @@ export function TarjetaRelacion({ tipo, codigo, numero, children, vacio, actual,
   );
 }
 
+/* ─── Card de sección con título + barra de color (Detalle/Nueva Cotización) */
+export function SeccionCotizacion({ titulo, color, children }) {
+  return (
+    <div className="bg-surface rounded-2xl border border-line shadow-sm p-6 space-y-4">
+      <div className="flex items-center gap-2">
+        <span className={`w-1.5 h-5 rounded-full ${color}`} />
+        <h2 className="text-sm font-bold text-ink uppercase tracking-wide">{titulo}</h2>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/* ─── Buscador de empresa por texto libre (Cotización nueva/Detalle) ─────
+   Si el usuario escribe un nombre que no coincide con ninguna empresa ya
+   registrada, se manda como `empresaNombre` y el backend la crea sola (ver
+   resolverEmpresaPorNombre en routes/cotizaciones.js) — mismo criterio que
+   SIPAPP-HUAQUIAN. El padre es dueño del estado (texto/empresaId); este
+   componente solo filtra y muestra el desplegable. */
+export function BuscadorEmpresaTexto({ empresas, texto, empresaId, onTexto, onSeleccionar, placeholder }) {
+  const [abierto, setAbierto] = useState(false);
+  const q = texto.trim().toLowerCase();
+  const filtradas = (q
+    ? empresas.filter((e) => [e.razonSocial, e.alias, e.ruc].some((v) => v?.toLowerCase().includes(q)))
+    : empresas
+  ).slice(0, 50);
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={texto}
+        onChange={(e) => onTexto(e.target.value)}
+        onFocus={() => setAbierto(true)}
+        onBlur={() => setAbierto(false)}
+        placeholder={placeholder || "Escribe el nombre de la empresa…"}
+        autoComplete="off"
+        className="border border-gray-200 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-1 focus:ring-gray-400 w-full"
+      />
+      {abierto && filtradas.length > 0 && (
+        <div className="absolute z-10 mt-1 w-full max-h-64 overflow-y-auto bg-surface border border-line rounded-lg shadow-lg">
+          {filtradas.map((e) => (
+            <button key={e._id} type="button" onMouseDown={() => onSeleccionar(e)}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-surface-hover transition border-b border-line last:border-0">
+              {e.alias ? `${e.alias} — ` : ""}{e.razonSocial}
+            </button>
+          ))}
+        </div>
+      )}
+      {!empresaId && texto.trim() && (
+        <p className="text-[11px] text-amber-600 mt-1">Se creará una empresa nueva con este nombre.</p>
+      )}
+    </div>
+  );
+}
+
 /* ─── Chip de estado genérico ───────────────────────────────────── */
 export function Chip({ children, className }) {
   return (

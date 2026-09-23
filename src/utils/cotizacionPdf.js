@@ -214,7 +214,7 @@ export const exportarCotizacionPdf = (cotizacion, ingresoEquipo = null) => {
   });
 
   y += 8;
-  const moneda = cotizacion.items[0]?.moneda ?? "PEN";
+  const moneda = cotizacion.moneda ?? "PEN";
   const simbolo = moneda === "PEN" ? "S/" : "$";
   const _bruto = cotizacion.items.reduce((s, i) => s + Number(i.cantidad) * Number(i.precio), 0);
   const _descMonto = parseFloat((_bruto - Number(cotizacion.subtotal)).toFixed(2));
